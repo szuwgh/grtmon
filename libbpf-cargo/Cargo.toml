@@ -1,0 +1,48 @@
+[package]
+name = "libbpf-cargo"
+description = "Cargo plugin to build bpf programs"
+repository = "https://github.com/libbpf/libbpf-rs"
+homepage = "https://github.com/libbpf/libbpf-rs"
+documentation = "https://docs.rs/crate/libbpf-cargo"
+readme = "../README.md"
+version = "0.9.4"
+authors = ["Daniel Xu <dxu@dxuuu.xyz>"]
+edition = "2018"
+license = "LGPL-2.1 OR BSD-2-Clause"
+keywords = ["bpf", "ebpf", "libbpf"]
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+# Crate is named libbpf-cargo to be consistent with libbpf-rs.
+# Binary must be named cargo-${SUBCOMMAND} to interop with cargo.
+[[bin]]
+name = "cargo-libbpf"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+# When turned on, link against system-installed libbpf instead of building
+# and linking against vendored libbpf sources
+novendor = ["libbpf-sys/novendor"]
+
+[dependencies]
+anyhow = "1.0"
+cargo_metadata = "0.12"
+libbpf-sys = { version = "0.6.0-1" }
+memmap2 = "0.3"
+num_enum = "0.5"
+regex = "1.5"
+scroll = "0.10"
+scroll_derive = "0.10"
+semver = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+structopt = "0.3"
+tempfile = "3.2"
+thiserror = "1.0"
+
+[dev-dependencies]
+goblin = "0.2"
