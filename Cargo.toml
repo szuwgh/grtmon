@@ -12,6 +12,7 @@ libbpf-rs = { path = "./libbpf-rs" }
 libc = "0.2"
 plain = "0.2"
 structopt = "0.3"
+ctrlc = { version = "3.0", features = ["termination"] }
 
 [build-dependencies]
 libbpf-cargo = { path = "./libbpf-cargo" }

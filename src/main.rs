@@ -1,35 +1,20 @@
-// SPDX-License-Identifier: (LGPL-2.1 OR BSD-2-Clause)
-
-use core::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::{thread, time};
 
 use anyhow::{bail, Result};
-use chrono::Local;
-use libbpf_rs::PerfBufferBuilder;
-use plain::Plain;
 use structopt::StructOpt;
 
-#[path = "bpf/.output/runqslower.skel.rs"]
-mod runqslower;
-use runqslower::*;
+#[path = "bpf/.output/xdppass.skel.rs"]
+mod xdppass;
+use xdppass::*;
 
-/// Trace high run queue latency
 #[derive(Debug, StructOpt)]
 struct Command {
-    /// Trace latency higher than this value
-    #[structopt(default_value = "10000")]
-    latency: u64,
-    /// Process PID to trace
+    /// Interface index to attach XDP program
     #[structopt(default_value = "0")]
-    pid: i32,
-    /// Thread TID to trace
-    #[structopt(default_value = "0")]
-    tid: i32,
-    /// Verbose debug output
-    #[structopt(short, long)]
-    verbose: bool,
+    ifindex: i32,
 }
-
-unsafe impl Plain for runqslower_bss_types::event {}
 
 fn bump_memlock_rlimit() -> Result<()> {
     let rlimit = libc::rlimit {
@@ -44,54 +29,29 @@ fn bump_memlock_rlimit() -> Result<()> {
     Ok(())
 }
 
-fn handle_event(_cpu: i32, data: &[u8]) {
-    let mut event = runqslower_bss_types::event::default();
-    plain::copy_from_bytes(&mut event, data).expect("Data buffer was too short");
-
-    let now = Local::now();
-    let task = std::str::from_utf8(&event.task).unwrap();
-
-    println!(
-        "{:8} {:16} {:<7} {:<14}",
-        now.format("%H:%M:%S"),
-        task.trim_end_matches(char::from(0)),
-        event.pid,
-        event.delta_us
-    );
-}
-
-fn handle_lost_events(cpu: i32, count: u64) {
-    eprintln!("Lost {} events on CPU {}", count, cpu);
-}
-
 fn main() -> Result<()> {
     let opts = Command::from_args();
 
-    let mut skel_builder = RunqslowerSkelBuilder::default();
-    if opts.verbose {
-        skel_builder.obj_builder.debug(true);
-    }
-
     bump_memlock_rlimit()?;
-    let mut open_skel = skel_builder.open()?;
 
-    // Write arguments into prog
-    open_skel.rodata().min_us = opts.latency;
-    open_skel.rodata().targ_pid = opts.pid;
-    open_skel.rodata().targ_tgid = opts.tid;
-
-    // Begin tracing
+    let skel_builder = XdppassSkelBuilder::default();
+    let open_skel = skel_builder.open()?;
     let mut skel = open_skel.load()?;
-    skel.attach()?;
-    println!("Tracing run queue latency higher than {} us", opts.latency);
-    println!("{:8} {:16} {:7} {:14}", "TIME", "COMM", "TID", "LAT(us)");
+    let link = skel.progs_mut().xdp_pass().attach_xdp(opts.ifindex)?;
+    skel.links = XdppassLinks {
+        xdp_pass: Some(link),
+    };
 
-    let perf = PerfBufferBuilder::new(skel.maps_mut().events())
-        .sample_cb(handle_event)
-        .lost_cb(handle_lost_events)
-        .build()?;
+    let running = Arc::new(AtomicBool::new(true));
+    let r = running.clone();
+    ctrlc::set_handler(move || {
+        r.store(false, Ordering::SeqCst);
+    })?;
 
-    loop {
-        perf.poll(Duration::from_millis(100))?;
+    while running.load(Ordering::SeqCst) {
+        eprint!(".");
+        thread::sleep(time::Duration::from_secs(1));
     }
+
+    Ok(())
 }
