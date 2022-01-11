@@ -4,6 +4,16 @@
 #include <arpa/inet.h>
 #include <linux/ip.h>
 #include "xdppass.h"
+#include <linux/tcp.h>
+struct forward_info
+{
+	uint32_t dest_ip;
+	uint16_t dest_port;
+};
+
+static __always_inline int forward_packet_l4(struct forward_info *info, struct xdp_md *ctx)
+{
+}
 
 SEC("xdp")
 int xdp_pass(struct xdp_md *ctx)
@@ -29,6 +39,15 @@ int xdp_pass(struct xdp_md *ctx)
 	if (iph->protocol != IPPROTO_TCP && iph->protocol != IPPROTO_UDP && iph->protocol != IPPROTO_ICMP)
 	{
 		return XDP_PASS;
+	}
+
+	if (iph->protocol == IPPROTO_TCP)
+	{
+		struct tcphdr *tcph = data + sizeof(struct ethhdr) + (iph->ihl * 4);
+		if (tcph->source != 8000)
+		{
+			return XDP_PASS;
+		}
 	}
 }
 
