@@ -5,7 +5,7 @@
 
 int main(int argc, char *argv[])
 {
-	if (argc != 2)
+	if (argc < 2)
 	{
 		fprintf(stderr, "Usage: %s [interface name]\n", argv[0]);
 		exit(EXIT_FAILURE);
@@ -23,8 +23,8 @@ int main(int argc, char *argv[])
 
 	///* 待转化的整数IP */
 	int IP1_Addr, IP2_Addr;
-	IP1_Addr = -2097174336;
-	IP2_Addr = -2097174336;
+	IP1_Addr = 21211328;
+	IP2_Addr = 21211328;
 
 	// 法1：提取IP：位移操作
 	int addr1_1 = IP1_Addr >> 24; // 提取第一部分IP地址
@@ -51,8 +51,8 @@ int main(int argc, char *argv[])
 	// printf("IP地址(求余取整)为:%d.%d.%d.%d\n", addr2_1, addr2_2, addr2_3, addr2_4);
 
 	struct in_addr daddr;
-	inet_pton(AF_INET, "192.168.255.130", &daddr);
-	printf("192.168.255.130 to %u\n", daddr.s_addr);
+	inet_pton(AF_INET, argv[2], &daddr);
+	printf("%s to %u\n", argv[2], daddr.s_addr);
 
 	exit(EXIT_SUCCESS);
 }

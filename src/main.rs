@@ -38,10 +38,10 @@ fn main() -> Result<()> {
     let open_skel = skel_builder.open()?;
     let mut skel = open_skel.load()?;
     let link = skel.progs_mut().xdp_pass().attach_xdp(opts.ifindex)?;
+   
     skel.links = XdppassLinks {
         xdp_pass: Some(link),
     };
-
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     ctrlc::set_handler(move || {

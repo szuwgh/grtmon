@@ -82,6 +82,8 @@ static __always_inline int forwardpacket4(struct forward_info *info, struct conn
 		return XDP_DROP;
 	}
 
+	swapeth(eth);
+
 	struct iphdr *iph = data + sizeof(struct ethhdr);
 
 	if (iph + 1 > (struct iphdr *)data_end)
@@ -94,8 +96,6 @@ static __always_inline int forwardpacket4(struct forward_info *info, struct conn
 	{
 		return XDP_DROP;
 	}
-
-	swapeth(eth);
 
 	uint16_t oldsrcport = tcph->source;
 	uint16_t olddestport = tcph->dest;
@@ -111,6 +111,7 @@ static __always_inline int forwardpacket4(struct forward_info *info, struct conn
 		iph->saddr = iph->daddr;
 		tcph->source = conn->port;
 		tcph->dest = info->destport;
+		iph->daddr = info->destaddr;
 	}
 	else
 	{
@@ -170,8 +171,11 @@ int xdp_pass(struct xdp_md *ctx)
 		{
 			return XDP_DROP;
 		}
+		if (tcph->dest != htons(22) && tcph->dest != htons(47152))
+		{
+			bpf_printk("packet saddr: %u, daddr:%u, port:  %u", iph->saddr, iph->daddr, htons(tcph->dest));
+		}
 
-		bpf_printk("packet saddr: %d, daddr:%d, port:  %u", iph->saddr, iph->daddr, htons(tcph->dest));
 		//bpf_printk("packet port: %d", tcph->dest);
 		if (tcph->dest != htons(8000))
 		{
@@ -190,7 +194,7 @@ int xdp_pass(struct xdp_md *ctx)
 			return XDP_PASS;
 		}
 		struct forward_info fwdinfo = {0};
-		fwdinfo.destaddr = 2197792960; //638390956;
+		fwdinfo.destaddr = 2185472192; //638390956;
 		fwdinfo.destport = htons(8001);
 
 		struct conn_key connkey = {0};
