@@ -5,6 +5,9 @@
         "bpf.h": "c",
         "xdppass.h": "c",
         "inet.h": "c",
-        "vmlinux.h": "c"
+        "vmlinux.h": "c",
+        "socket.h": "c",
+        "in.h": "c",
+        "features.h": "c"
     }
 }
