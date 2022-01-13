@@ -7,6 +7,11 @@
 #include <linux/tcp.h>
 #include "csum.h"
 
+#define PRIu8 "hhu"
+#define PRIu16 "hu"
+#define PRIu32 "u"
+#define PRIu64 "llu"
+
 #define MAXRULES 256
 #define MAXCONNECTIONS 1000000
 
@@ -82,7 +87,14 @@ static __always_inline int forwardpacket4(struct forward_info *info, struct conn
 		return XDP_DROP;
 	}
 
+	//Swap ethernet source and destination MAC addresses.
 	swapeth(eth);
+	eth->h_dest[0] = 0;
+	eth->h_dest[1] = 80;
+	eth->h_dest[2] = 86;
+	eth->h_dest[3] = 151;
+	eth->h_dest[4] = 16;
+	eth->h_dest[5] = 138;
 
 	struct iphdr *iph = data + sizeof(struct ethhdr);
 
@@ -105,7 +117,7 @@ static __always_inline int forwardpacket4(struct forward_info *info, struct conn
 
 	//iph->daddr = info->destaddr;
 	//638390956; // inet_aton("172.18.13.38"); //in_aton("172.18.13.38"); //2886864166; //172.18.13.38
-
+	bpf_printk("swap IP ");
 	if (info)
 	{
 		iph->saddr = iph->daddr;
@@ -127,9 +139,10 @@ static __always_inline int forwardpacket4(struct forward_info *info, struct conn
 
 	tcph->check = csum_diff4(oldsrcport, tcph->source, tcph->check);
 	tcph->check = csum_diff4(olddestport, tcph->dest, tcph->check);
-
+	bpf_printk("update_iph_checksum ");
 	update_iph_checksum(iph);
-	return XDP_TX;
+	bpf_printk("Forward IP => %u, %u, %u", iph->saddr, iph->daddr, iph->protocol);
+	return XDP_PASS;
 }
 
 SEC("xdp")
@@ -166,6 +179,7 @@ int xdp_pass(struct xdp_md *ctx)
 
 	if (iph->protocol == IPPROTO_TCP)
 	{
+
 		struct tcphdr *tcph = data + sizeof(struct ethhdr) + (iph->ihl * 4);
 		if (tcph + 1 > (struct tcphdr *)data_end)
 		{
@@ -173,9 +187,9 @@ int xdp_pass(struct xdp_md *ctx)
 		}
 		if (tcph->dest != htons(22) && tcph->dest != htons(47152))
 		{
-			bpf_printk("packet saddr: %u, daddr:%u, port:  %u", iph->saddr, iph->daddr, htons(tcph->dest));
+			bpf_printk("packet saddr: %u, daddr:%u, port:  %u, ", iph->saddr, iph->daddr, htons(tcph->dest));
+			int i = 0;
 		}
-
 		//bpf_printk("packet port: %d", tcph->dest);
 		if (tcph->dest != htons(8000))
 		{
@@ -194,7 +208,7 @@ int xdp_pass(struct xdp_md *ctx)
 			return XDP_PASS;
 		}
 		struct forward_info fwdinfo = {0};
-		fwdinfo.destaddr = 2185472192; //638390956;
+		fwdinfo.destaddr = 638390956; //638390956;
 		fwdinfo.destport = htons(8001);
 
 		struct conn_key connkey = {0};
@@ -239,7 +253,7 @@ int xdp_pass(struct xdp_md *ctx)
 			nconnkey.bindport = tcph->dest;
 			nconnkey.protocol = iph->protocol;
 
-			uint16_t port = htons(8009);
+			uint16_t port = htons(8010);
 
 			bpf_map_update_elem(&connection_map, &nconnkey, &port, BPF_ANY);
 

@@ -22,9 +22,9 @@ int main(int argc, char *argv[])
 	printf("Interface %s : %d\n", argv[1], if_index);
 
 	///* 待转化的整数IP */
-	int IP1_Addr, IP2_Addr;
-	IP1_Addr = 21211328;
-	IP2_Addr = 21211328;
+	unsigned int IP1_Addr, IP2_Addr;
+	IP1_Addr = 638390956;
+	IP2_Addr = 638390956;
 
 	// 法1：提取IP：位移操作
 	int addr1_1 = IP1_Addr >> 24; // 提取第一部分IP地址
