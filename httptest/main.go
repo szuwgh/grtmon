@@ -10,7 +10,7 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-    port := "8001"
+    port := "8000"
     http.HandleFunc("/", IndexHandler)
     fmt.Println("listen...", port)  
     http.ListenAndServe(":"+port, nil)

@@ -8,6 +8,7 @@
         "vmlinux.h": "c",
         "socket.h": "c",
         "in.h": "c",
-        "features.h": "c"
+        "features.h": "c",
+        "bpf_core_read.h": "c"
     }
 }

@@ -3,7 +3,7 @@ use std::path::Path;
 
 use libbpf_cargo::SkeletonBuilder;
 
-const SRC: &str = "./src/bpf/xdppass.bpf.c";
+const SRC: &str = "./src/bpf/tcpconnect.bpf.c";
 
 fn main() {
     // It's unfortunate we cannot use `OUT_DIR` to store the generated skeleton.
@@ -15,7 +15,7 @@ fn main() {
     // However, there is hope! When the above feature stabilizes we can clean this
     // all up.
     create_dir_all("./src/bpf/.output").unwrap();
-    let skel = Path::new("./src/bpf/.output/xdppass.skel.rs");
+    let skel = Path::new("./src/bpf/.output/tcpconnect.skel.rs");
     SkeletonBuilder::new(SRC).generate(&skel).unwrap();
     println!("cargo:rerun-if-changed={}", SRC);
 }

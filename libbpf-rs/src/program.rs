@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 use std::path::Path;
+use std::ptr;
 
-use nix::errno;
 use num_enum::TryFromPrimitive;
 use strum_macros::Display;
 
@@ -12,11 +12,12 @@ use crate::*;
 /// This object exposes operations that need to happen before the program is loaded.
 pub struct OpenProgram {
     ptr: *mut libbpf_sys::bpf_program,
+    section: String,
 }
 
 impl OpenProgram {
-    pub(crate) fn new(ptr: *mut libbpf_sys::bpf_program) -> Self {
-        OpenProgram { ptr }
+    pub(crate) fn new(ptr: *mut libbpf_sys::bpf_program, section: String) -> Self {
+        Self { ptr, section }
     }
 
     pub fn set_prog_type(&mut self, prog_type: ProgramType) {
@@ -35,6 +36,39 @@ impl OpenProgram {
         unsafe {
             libbpf_sys::bpf_program__set_ifindex(self.ptr, idx);
         }
+    }
+
+    /// Name of the section this `Program` belongs to.
+    pub fn section(&self) -> &str {
+        &self.section
+    }
+
+    pub fn set_autoload(&mut self, autoload: bool) -> Result<()> {
+        let ret = unsafe { libbpf_sys::bpf_program__set_autoload(self.ptr, autoload) };
+        util::parse_ret(ret)
+    }
+
+    pub fn set_attach_target(
+        &mut self,
+        attach_prog_fd: i32,
+        attach_func_name: Option<String>,
+    ) -> Result<()> {
+        let ret = if let Some(name) = attach_func_name {
+            // NB: we must hold onto a CString otherwise our pointer dangles
+            let name_c = util::str_to_cstring(&name)?;
+            unsafe {
+                libbpf_sys::bpf_program__set_attach_target(
+                    self.ptr,
+                    attach_prog_fd,
+                    name_c.as_ptr(),
+                )
+            }
+        } else {
+            unsafe {
+                libbpf_sys::bpf_program__set_attach_target(self.ptr, attach_prog_fd, ptr::null())
+            }
+        };
+        util::parse_ret(ret)
     }
 }
 
@@ -185,12 +219,7 @@ impl Program {
         let path_ptr = path_c.as_ptr();
 
         let ret = unsafe { libbpf_sys::bpf_program__pin(self.ptr, path_ptr) };
-        if ret != 0 {
-            // Error code is returned negative, flip to positive to match errno
-            Err(Error::System(-ret))
-        } else {
-            Ok(())
-        }
+        util::parse_ret(ret)
     }
 
     /// [Unpin](https://facebookmicrosites.github.io/bpf/blog/2018/08/31/object-lifetime.html#bpffs)
@@ -200,12 +229,7 @@ impl Program {
         let path_ptr = path_c.as_ptr();
 
         let ret = unsafe { libbpf_sys::bpf_program__unpin(self.ptr, path_ptr) };
-        if ret != 0 {
-            // Error code is returned negative, flip to positive to match errno
-            Err(Error::System(-ret))
-        } else {
-            Ok(())
-        }
+        util::parse_ret(ret)
     }
 
     /// Auto-attach based on prog section
@@ -343,11 +367,7 @@ impl Program {
     pub fn attach_sockmap(&self, map_fd: i32) -> Result<()> {
         let err =
             unsafe { libbpf_sys::bpf_prog_attach(self.fd(), map_fd, self.attach_type() as u32, 0) };
-        if err != 0 {
-            Err(Error::System(errno::errno()))
-        } else {
-            Ok(())
-        }
+        util::parse_ret(err)
     }
 
     /// Attach this program to [XDP](https://lwn.net/Articles/825998/)

@@ -5,15 +5,22 @@ use std::{thread, time};
 use anyhow::{bail, Result};
 use structopt::StructOpt;
 
-#[path = "bpf/.output/xdppass.skel.rs"]
-mod xdppass;
-use xdppass::*;
+#[path = "bpf/.output/tcpconnect.skel.rs"]
+mod tcpconnect;
+use tcpconnect::*;
 
 #[derive(Debug, StructOpt)]
 struct Command {
-    /// Interface index to attach XDP program
+    #[structopt(default_value = "10000")]
+    latency: u64,
+    /// Process PID to trace
     #[structopt(default_value = "0")]
-    ifindex: i32,
+    pid: i32,
+    /// Thread TID to trace
+    #[structopt(default_value = "0")]
+    tid: i32,
+    #[structopt(short, long)]
+    verbose: bool,
 }
 
 fn bump_memlock_rlimit() -> Result<()> {
@@ -34,13 +41,22 @@ fn main() -> Result<()> {
 
     bump_memlock_rlimit()?;
 
-    let skel_builder = XdppassSkelBuilder::default();
-    let open_skel = skel_builder.open()?;
+    let skel_builder = TcpconnectSkelBuilder::default();
+    if opts.verbose {
+        // skel_builder.obj_builder.verbose(true);
+    }
+
+    bump_memlock_rlimit()?;
+
+    let mut open_skel = skel_builder.open()?;
+    //Pass configuration to BPF
+    // Write arguments into prog
+    open_skel.rodata().min_us = opts.latency;
+    open_skel.rodata().targ_pid = opts.pid;
+    open_skel.rodata().targ_tgid = opts.tid;
+
     let mut skel = open_skel.load()?;
-    let link = skel.progs_mut().xdp_pass().attach_xdp(opts.ifindex)?;
-    skel.links = XdppassLinks {
-        xdp_pass: Some(link),
-    };
+    skel.attach()?;
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     ctrlc::set_handler(move || {

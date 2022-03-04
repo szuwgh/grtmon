@@ -138,7 +138,7 @@ impl OpenObject {
         let mut map: *mut libbpf_sys::bpf_map = std::ptr::null_mut();
         loop {
             // Get the pointer to the next BPF map
-            let next_ptr = unsafe { libbpf_sys::bpf_map__next(map, obj.ptr) };
+            let next_ptr = unsafe { libbpf_sys::bpf_object__next_map(obj.ptr, map) };
             if next_ptr.is_null() {
                 break;
             }
@@ -158,7 +158,7 @@ impl OpenObject {
         let mut prog: *mut libbpf_sys::bpf_program = std::ptr::null_mut();
         loop {
             // Get the pointer to the next BPF program
-            let next_ptr = unsafe { libbpf_sys::bpf_program__next(prog, obj.ptr) };
+            let next_ptr = unsafe { libbpf_sys::bpf_object__next_program(obj.ptr, prog) };
             if next_ptr.is_null() {
                 break;
             }
@@ -168,8 +168,13 @@ impl OpenObject {
             let name = unsafe { libbpf_sys::bpf_program__name(next_ptr) };
             let name = util::c_ptr_to_string(name)?;
 
+            // Get the program section
+            // bpf_program__section_name never returns NULL, so no need to check the pointer.
+            let section = unsafe { libbpf_sys::bpf_program__section_name(next_ptr) };
+            let section = util::c_ptr_to_string(section)?;
+
             // Add the program to the hashmap
-            obj.progs.insert(name, OpenProgram::new(next_ptr));
+            obj.progs.insert(name, OpenProgram::new(next_ptr, section));
             prog = next_ptr;
         }
 
@@ -306,7 +311,7 @@ impl Object {
         let mut map: *mut libbpf_sys::bpf_map = std::ptr::null_mut();
         loop {
             // Get the pointer to the next BPF map
-            let next_ptr = unsafe { libbpf_sys::bpf_map__next(map, obj.ptr) };
+            let next_ptr = unsafe { libbpf_sys::bpf_object__next_map(obj.ptr, map) };
             if next_ptr.is_null() {
                 break;
             }
@@ -340,7 +345,7 @@ impl Object {
         let mut prog: *mut libbpf_sys::bpf_program = std::ptr::null_mut();
         loop {
             // Get the pointer to the next BPF program
-            let next_ptr = unsafe { libbpf_sys::bpf_program__next(prog, obj.ptr) };
+            let next_ptr = unsafe { libbpf_sys::bpf_object__next_program(obj.ptr, prog) };
             if next_ptr.is_null() {
                 break;
             }
@@ -354,12 +359,6 @@ impl Object {
             // bpf_program__section_name never returns NULL, so no need to check the pointer.
             let section = unsafe { libbpf_sys::bpf_program__section_name(next_ptr) };
             let section = util::c_ptr_to_string(section)?;
-
-            // Get the program fd
-            let fd = unsafe { libbpf_sys::bpf_program__fd(next_ptr) };
-            if fd < 0 {
-                return Err(Error::System(-fd));
-            }
 
             // Add the program to the hashmap
             obj.progs

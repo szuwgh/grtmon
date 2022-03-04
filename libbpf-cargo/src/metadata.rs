@@ -15,8 +15,9 @@ struct LibbpfPackageMetadata {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum PackageMetadata {
-    Libbpf(LibbpfPackageMetadata),
+struct PackageMetadata {
+    #[serde(default)]
+    libbpf: LibbpfPackageMetadata,
 }
 
 #[derive(Debug, Clone)]
@@ -42,14 +43,14 @@ fn get_package(
     }
 
     let package_metadata = if package.metadata != Value::Null {
-        let PackageMetadata::Libbpf(lpm) = serde_json::from_value(package.metadata.clone())?;
-        lpm
+        let PackageMetadata { libbpf } = serde_json::from_value(package.metadata.clone())?;
+        libbpf
     } else {
         LibbpfPackageMetadata::default()
     };
 
     // Respect custom target directories specified by package
-    let mut package_root = package.manifest_path.clone();
+    let mut package_root = package.manifest_path.clone().into_std_path_buf();
     // Remove "Cargo.toml"
     package_root.pop();
     if let Some(d) = package_metadata.prog_dir {
@@ -137,7 +138,8 @@ fn get_package(
         .collect())
 }
 
-pub fn get(debug: bool, manifest_path: Option<&PathBuf>) -> Result<Vec<UnprocessedObj>> {
+/// Returns the `target_directory` and a list of objects to compile.
+pub fn get(debug: bool, manifest_path: Option<&PathBuf>) -> Result<(PathBuf, Vec<UnprocessedObj>)> {
     let mut cmd = MetadataCommand::new();
 
     if let Some(path) = manifest_path {
@@ -153,11 +155,12 @@ pub fn get(debug: bool, manifest_path: Option<&PathBuf>) -> Result<Vec<Unprocess
         bail!("Failed to find targets")
     }
 
+    let target_directory = metadata.target_directory.clone().into_std_path_buf();
     let mut v: Vec<UnprocessedObj> = Vec::new();
     for id in &metadata.workspace_members {
         for package in &metadata.packages {
             if id == &package.id {
-                match &mut get_package(debug, package, &metadata.target_directory) {
+                match &mut get_package(debug, package, &target_directory) {
                     Ok(vv) => v.append(vv),
                     Err(e) => bail!("Failed to process package={}, error={}", package.name, e),
                 }
@@ -165,5 +168,5 @@ pub fn get(debug: bool, manifest_path: Option<&PathBuf>) -> Result<Vec<Unprocess
         }
     }
 
-    Ok(v)
+    Ok((metadata.target_directory.into_std_path_buf(), v))
 }
