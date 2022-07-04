@@ -11,12 +11,13 @@ import (
 	"log"
 	"time"
 
+	_ "github.com/cilium/ebpf/cmd/bpf2go"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 )
 
 // $BPF_CLANG and $BPF_CFLAGS are set by the Makefile.
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc clang -strip llvm-strip-12 -cflags "-O2 -g -Wall -Werror" bpf ./ebpf/kprobe.c -- -DOUTPUT_SKB -D__TARGET_ARCH_x86 -I./ebpf/headers
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc clang -strip llvm-strip-12 -cflags "-O2 -g -Wall -Werror" bpf ./bpf/kprobe/kprobe.c -- -DOUTPUT_SKB -D__TARGET_ARCH_x86 -I./bpf/headers
 
 const mapKey uint32 = 0
 
