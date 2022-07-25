@@ -11,7 +11,7 @@ import (
 	"log"
 	"time"
 
-	_ "github.com/cilium/ebpf/cmd/bpf2go"
+	//	_ "github.com/cilium/ebpf/cmd/bpf2go"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 )
