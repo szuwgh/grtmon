@@ -1,3 +1,3 @@
 # Rtmon
-go runtime monitor
+go runtime monitor based on ebpf
 
