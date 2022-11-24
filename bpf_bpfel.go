@@ -54,14 +54,14 @@ type bpfSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfProgramSpecs struct {
-	KprobeExecve *ebpf.ProgramSpec `ebpf:"kprobe_execve"`
+	UprobeMainHello *ebpf.ProgramSpec `ebpf:"uprobe_main_hello"`
 }
 
 // bpfMapSpecs contains maps before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfMapSpecs struct {
-	KprobeMap *ebpf.MapSpec `ebpf:"kprobe_map"`
+	UprobeMap *ebpf.MapSpec `ebpf:"uprobe_map"`
 }
 
 // bpfObjects contains all objects after they have been loaded into the kernel.
@@ -83,12 +83,12 @@ func (o *bpfObjects) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfMaps struct {
-	KprobeMap *ebpf.Map `ebpf:"kprobe_map"`
+	UprobeMap *ebpf.Map `ebpf:"uprobe_map"`
 }
 
 func (m *bpfMaps) Close() error {
 	return _BpfClose(
-		m.KprobeMap,
+		m.UprobeMap,
 	)
 }
 
@@ -96,12 +96,12 @@ func (m *bpfMaps) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfPrograms struct {
-	KprobeExecve *ebpf.Program `ebpf:"kprobe_execve"`
+	UprobeMainHello *ebpf.Program `ebpf:"uprobe_main_hello"`
 }
 
 func (p *bpfPrograms) Close() error {
 	return _BpfClose(
-		p.KprobeExecve,
+		p.UprobeMainHello,
 	)
 }
 
