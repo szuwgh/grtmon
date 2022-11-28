@@ -29,7 +29,12 @@ const (
 	// to be specified instead, e.g. /usr/lib/libreadline.so.8.
 	// Use `ldd /bin/bash` to find these paths.
 	binPath = "/opt/goproject/rtmon/src/github.com/szuwgh/rtmon/testgo/testgo"
-	symbol  = "main.hello"
+	symbol  = "runtime.newproc1"
+	symbol1 = "runtime.runqput"
+	symbol2 = "runtime.execute"
+	symbol3 = "runtime.goexit0"
+
+	symbol4 = "runtime.gcStart"
 )
 
 func main() {
@@ -61,11 +66,35 @@ func main() {
 
 	// Open a Uretprobe at the exit point of the symbol and attach
 	// the pre-compiled eBPF program to it.
-	up, err := ex.Uprobe(symbol, objs.UprobeMainHello, nil)
+	up, err := ex.Uprobe(symbol, objs.UprobeRuntimeNewproc1, nil)
 	if err != nil {
 		log.Fatalf("creating uretprobe: %s", err)
 	}
 	defer up.Close()
+
+	up1, err := ex.Uprobe(symbol1, objs.UprobeRuntimeRunqput, nil)
+	if err != nil {
+		log.Fatalf("creating uretprobe: %s", err)
+	}
+	defer up1.Close()
+
+	up2, err := ex.Uprobe(symbol2, objs.UprobeRuntimeExecute, nil)
+	if err != nil {
+		log.Fatalf("creating uretprobe: %s", err)
+	}
+	defer up2.Close()
+
+	up3, err := ex.Uprobe(symbol3, objs.UprobeRuntimeGoexit0, nil)
+	if err != nil {
+		log.Fatalf("creating uretprobe: %s", err)
+	}
+	defer up3.Close()
+
+	up4, err := ex.Uprobe(symbol4, objs.UprobeRuntimeGc, nil)
+	if err != nil {
+		log.Fatalf("creating uretprobe: %s", err)
+	}
+	defer up4.Close()
 
 	// kp, err := link.Kprobe(fn, objs.KprobeExecve, nil)
 	// if err != nil {

@@ -1,17 +1,15 @@
 package main
 
-import "time"
-
-func hello(xxx int) {
-	println(xxx)
-}
+import "runtime"
 
 func main() {
-	var i int
-	for {
-		go hello(i)
-		i++
-		time.Sleep(2 * time.Second)
-	}
-	select {}
+	//var i int = 101
+	// for {
+
+	// 	check.Ok(i)
+	// 	i++
+	// 	time.Sleep(2 * time.Second)
+	// }
+	runtime.GC()
+	//select {}
 }

@@ -54,13 +54,18 @@ type bpfSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfProgramSpecs struct {
-	UprobeMainHello *ebpf.ProgramSpec `ebpf:"uprobe_main_hello"`
+	UprobeRuntimeExecute  *ebpf.ProgramSpec `ebpf:"uprobe_runtime_execute"`
+	UprobeRuntimeGc       *ebpf.ProgramSpec `ebpf:"uprobe_runtime_gc"`
+	UprobeRuntimeGoexit0  *ebpf.ProgramSpec `ebpf:"uprobe_runtime_goexit0"`
+	UprobeRuntimeNewproc1 *ebpf.ProgramSpec `ebpf:"uprobe_runtime_newproc1"`
+	UprobeRuntimeRunqput  *ebpf.ProgramSpec `ebpf:"uprobe_runtime_runqput"`
 }
 
 // bpfMapSpecs contains maps before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfMapSpecs struct {
+	TimeMap   *ebpf.MapSpec `ebpf:"time_map"`
 	UprobeMap *ebpf.MapSpec `ebpf:"uprobe_map"`
 }
 
@@ -83,11 +88,13 @@ func (o *bpfObjects) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfMaps struct {
+	TimeMap   *ebpf.Map `ebpf:"time_map"`
 	UprobeMap *ebpf.Map `ebpf:"uprobe_map"`
 }
 
 func (m *bpfMaps) Close() error {
 	return _BpfClose(
+		m.TimeMap,
 		m.UprobeMap,
 	)
 }
@@ -96,12 +103,20 @@ func (m *bpfMaps) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfPrograms struct {
-	UprobeMainHello *ebpf.Program `ebpf:"uprobe_main_hello"`
+	UprobeRuntimeExecute  *ebpf.Program `ebpf:"uprobe_runtime_execute"`
+	UprobeRuntimeGc       *ebpf.Program `ebpf:"uprobe_runtime_gc"`
+	UprobeRuntimeGoexit0  *ebpf.Program `ebpf:"uprobe_runtime_goexit0"`
+	UprobeRuntimeNewproc1 *ebpf.Program `ebpf:"uprobe_runtime_newproc1"`
+	UprobeRuntimeRunqput  *ebpf.Program `ebpf:"uprobe_runtime_runqput"`
 }
 
 func (p *bpfPrograms) Close() error {
 	return _BpfClose(
-		p.UprobeMainHello,
+		p.UprobeRuntimeExecute,
+		p.UprobeRuntimeGc,
+		p.UprobeRuntimeGoexit0,
+		p.UprobeRuntimeNewproc1,
+		p.UprobeRuntimeRunqput,
 	)
 }
 
