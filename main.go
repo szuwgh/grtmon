@@ -12,7 +12,7 @@ import (
 	//_ "github.com/cilium/ebpf/cmd/bpf2go"
 )
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc clang -strip llvm-strip-12 -cflags "-O2 -g -Wall -Werror" -type gorevent bpf ./bpf/gor/gor.c -- -DOUTPUT_SKB -D__TARGET_ARCH_x86 -I./bpf/headers
+
 func main() {
 	cmd.Execute()
 }

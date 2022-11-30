@@ -1,3 +1,4 @@
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc clang -strip llvm-strip-12 -cflags "-O2 -g -Wall -Werror" -target native -type gorevent bpf ../bpf/gor/gor.c -- -I../bpf/headers
 package user
 
 import (
@@ -5,6 +6,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/perf"
@@ -21,7 +25,7 @@ const (
 	// dynamically-linked library, so the path of the library will need
 	// to be specified instead, e.g. /usr/lib/libreadline.so.8.
 	// Use `ldd /bin/bash` to find these paths.
-	binPath = "/opt/goproject/rtmon/src/github.com/szuwgh/rtmon/testgo/testgo"
+	binPath = "/opt/goproject/rtmon/src/grtmon/testgo/testgo"
 
 	newproc1    = "runtime.newproc1"
 	runqputslow = "runtime.runqputslow"
@@ -38,6 +42,8 @@ const (
 )
 
 func ObserveGor() {
+	stopper := make(chan os.Signal, 1)
+	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 	if err := rlimit.RemoveMemlock(); err != nil {
 		log.Fatal(err)
 	}
@@ -63,11 +69,11 @@ func ObserveGor() {
 		log.Fatalf("creating uprobe: %s", err)
 	}
 	defer up1.Close()
-	up2, err := ex.Uprobe(globrunqget, objs.UprobeRuntimeGlobrunqget, nil)
-	if err != nil {
-		log.Fatalf("creating uprobe: %s", err)
-	}
-	defer up2.Close()
+	// up2, err := ex.Uprobe(globrunqget, objs.UprobeRuntimeGlobrunqget, nil)
+	// if err != nil {
+	// 	log.Fatalf("creating uprobe: %s", err)
+	// }
+	// defer up2.Close()
 	up3, err := ex.Uprobe(runqsteal, objs.UprobeRuntimeRunqsteal, nil)
 	if err != nil {
 		log.Fatalf("creating uprobe: %s", err)
@@ -83,6 +89,24 @@ func ObserveGor() {
 		log.Fatalf("creating uprobe: %s", err)
 	}
 	defer up5.Close()
+
+	rd, err := perf.NewReader(objs.Events, os.Getpagesize())
+	if err != nil {
+		log.Fatalf("creating perf event reader: %s", err)
+	}
+	defer rd.Close()
+
+	go func() {
+		// Wait for a signal and close the perf reader,
+		// which will interrupt rd.Read() and make the program exit.
+		<-stopper
+		log.Println("Received signal, exiting program..")
+
+		if err := rd.Close(); err != nil {
+			log.Fatalf("closing perf event reader: %s", err)
+		}
+	}()
+
 	log.Printf("Listening for events..")
 	var event bpfGorevent
 	for {
