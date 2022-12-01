@@ -3,11 +3,11 @@
 
 //var gorEvent = map[uint32] string { 1 : "create", 2 : "put global g", 3 : "get global g", 4 : "steal", 5 : "exit" }
 
-// const u32 create = 1;
-// const u32 put_global = 2;
-// const u32 get_global = 3;
-// const u32 steal = 4;
-// const u32 exit1 = 5;
+static const u32 create = 1;
+static const u32 put_global = 2;
+static const u32 get_global = 3;
+static const u32 steal = 4;
+static const u32 exit = 5;
 
 struct
 { //高阶用法，改为Map堆中创建数据结构
@@ -21,7 +21,6 @@ static struct gorevent *get_event()
 {
     static const int zero = 0;
     struct gorevent *event;
-
     event = bpf_map_lookup_elem(&heap, &zero);
     if (!event)
         return NULL;
@@ -153,17 +152,6 @@ struct funcval
 SEC("uprobe/runtime.newproc1")
 int uprobe_runtime_newproc1(struct pt_regs *ctx)
 {
-    // __u32 key = 2;
-    // __u64 initval = 1, *valp;
-
-    // valp = bpf_map_lookup_elem(&uprobe_map, &key);
-    // if (!valp)
-    // {
-    //     bpf_map_update_elem(&uprobe_map, &key, &initval, BPF_ANY);
-    //     return 0;
-    // }
-    // __sync_fetch_and_add(valp, 1);
-    //  struct gorevent event;
     struct funcval fn;
     bpf_probe_read(&fn, sizeof(fn), (void *)PT_REGS_RC(ctx));
     struct gorevent *event;
@@ -171,7 +159,7 @@ int uprobe_runtime_newproc1(struct pt_regs *ctx)
     if (!event)
         return 0;
     event->fn = fn.fn;
-    event->event = 1;
+    event->event = create;
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
     return 0;
 }
@@ -188,32 +176,37 @@ int uprobe_runtime_runqputslow(struct pt_regs *ctx)
     struct g gs;
     bpf_probe_read(&gs, sizeof(gs), (void *)(ctx->rbx));
     // bpf_printk("runqput: %lld", gs.goid);
-    //   struct gorevent event;
-    // event.fn = fn.fn;
-    //   event.goid = gs.goid;
-    //   event.pid = ps.id;
-    //   event.event = 2;
-    //  bpf_perf_event_output(ctx, &gorevents, BPF_F_CURRENT_CPU, &event, sizeof(event));
+    struct gorevent *event;
+    event = get_event();
+    if (!event)
+        return 0;
+    event->goid = gs.goid;
+    event->pid = ps.id;
+    event->event = put_global;
+    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
 
     return 0;
 }
 
 //从全局队列取
-//func globrunqget(_p_ *p, max int32) *g
-// SEC("uprobe/runtime.globrunqget")
-// int uprobe_runtime_globrunqget(struct pt_regs *ctx)
-// {
+//func globrunqget(_p_ *p, max int32) * g
+SEC("uprobe/runtime.globrunqget")
+int uprobe_runtime_globrunqget(struct pt_regs *ctx)
+{
 
-//     // struct p ps;
-//     //  bpf_probe_read(&ps, sizeof(ps), (void *)(ctx->rax));
-//     struct gorevent event;
-//     // event.fn = fn.fn;
-//     //event.pid = ps.id;
-//     // event.event = get_global;
-//     bpf_perf_event_output(ctx, &gorevents, BPF_F_CURRENT_CPU, &event, sizeof(event));
+    struct p ps;
+    bpf_probe_read(&ps, sizeof(ps), (void *)(ctx->rax));
+    struct gorevent *event;
+    event = get_event();
+    if (!event)
+        return 0;
+    // event.fn = fn.fn;
+    event->pid = ps.id;
+    event->event = get_global;
+    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
 
-//     return 0;
-// }
+    return 0;
+}
 
 // Steal half of elements from local runnable queue of p2
 //从其他队列偷
@@ -228,11 +221,14 @@ int uprobe_runtime_runqsteal(struct pt_regs *ctx)
     struct p ps2;
     bpf_probe_read(&ps2, sizeof(ps2), (void *)(ctx->rbx));
     // bpf_printk("runqput: %lld", gs.goid);
-    //    struct gorevent event;
-    //    event.pid = ps1.id;
-    //    event.pid2 = ps2.id;
-    //    event.event = 3;
-    //  bpf_perf_event_output(ctx, &gorevents, BPF_F_CURRENT_CPU, &event, sizeof(event));
+    struct gorevent *event;
+    event = get_event();
+    if (!event)
+        return 0;
+    event->pid = ps1.id;
+    event->pid2 = ps2.id;
+    event->event = steal;
+    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
 
     return 0;
 }
@@ -267,16 +263,17 @@ int uprobe_runtime_goexit0(struct pt_regs *ctx)
     __u64 *time1 = bpf_map_lookup_elem(&time_map, &gs.goid);
     __u64 t1 = 0;
     bpf_probe_read(&t1, sizeof(t1), (void *)time1);
-    //   __u64 time2 = bpf_ktime_get_ns();
+    __u64 time2 = bpf_ktime_get_ns();
     // bpf_printk("goexit0: %lld,%lld ns", gs.goid, time2 - t1);
     bpf_map_delete_elem(&time_map, &gs.goid);
-    // struct gorevent *event;
-    // event = get_event();
-    //  event.goid = gs.goid;
-    // event.pid = ps.id;
-    //   event.event = 4;
-    //   event.time = time2 - t1;
-    // bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, &event, sizeof(*event));
+    struct gorevent *event;
+    event = get_event();
+    if (!event)
+        return 0;
+    event->goid = gs.goid;
+    event->event = exit;
+    event->time = time2 - t1;
+    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
     return 0;
 }
 

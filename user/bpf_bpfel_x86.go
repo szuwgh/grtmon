@@ -68,6 +68,7 @@ type bpfProgramSpecs struct {
 	UprobeRuntimeExecute               *ebpf.ProgramSpec `ebpf:"uprobe_runtime_execute"`
 	UprobeRuntimeGcDrain               *ebpf.ProgramSpec `ebpf:"uprobe_runtime_gcDrain"`
 	UprobeRuntimeGcsweep               *ebpf.ProgramSpec `ebpf:"uprobe_runtime_gcsweep"`
+	UprobeRuntimeGlobrunqget           *ebpf.ProgramSpec `ebpf:"uprobe_runtime_globrunqget"`
 	UprobeRuntimeGoexit0               *ebpf.ProgramSpec `ebpf:"uprobe_runtime_goexit0"`
 	UprobeRuntimeMallocgc              *ebpf.ProgramSpec `ebpf:"uprobe_runtime_mallocgc"`
 	UprobeRuntimeNewproc1              *ebpf.ProgramSpec `ebpf:"uprobe_runtime_newproc1"`
@@ -131,6 +132,7 @@ type bpfPrograms struct {
 	UprobeRuntimeExecute               *ebpf.Program `ebpf:"uprobe_runtime_execute"`
 	UprobeRuntimeGcDrain               *ebpf.Program `ebpf:"uprobe_runtime_gcDrain"`
 	UprobeRuntimeGcsweep               *ebpf.Program `ebpf:"uprobe_runtime_gcsweep"`
+	UprobeRuntimeGlobrunqget           *ebpf.Program `ebpf:"uprobe_runtime_globrunqget"`
 	UprobeRuntimeGoexit0               *ebpf.Program `ebpf:"uprobe_runtime_goexit0"`
 	UprobeRuntimeMallocgc              *ebpf.Program `ebpf:"uprobe_runtime_mallocgc"`
 	UprobeRuntimeNewproc1              *ebpf.Program `ebpf:"uprobe_runtime_newproc1"`
@@ -145,6 +147,7 @@ func (p *bpfPrograms) Close() error {
 		p.UprobeRuntimeExecute,
 		p.UprobeRuntimeGcDrain,
 		p.UprobeRuntimeGcsweep,
+		p.UprobeRuntimeGlobrunqget,
 		p.UprobeRuntimeGoexit0,
 		p.UprobeRuntimeMallocgc,
 		p.UprobeRuntimeNewproc1,
