@@ -15,12 +15,9 @@ import (
 
 type bpfGorevent struct {
 	Fn    uint64
-	Mid   uint64
 	Time  uint64
 	Event uint32
 	Pid   uint32
-	Pid2  uint32
-	_     [4]byte
 	Goid  int64
 }
 
@@ -66,7 +63,8 @@ type bpfSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfProgramSpecs struct {
 	UprobeRuntimeExecute               *ebpf.ProgramSpec `ebpf:"uprobe_runtime_execute"`
-	UprobeRuntimeGcDrain               *ebpf.ProgramSpec `ebpf:"uprobe_runtime_gcDrain"`
+	UprobeRuntimeGcMarkDone            *ebpf.ProgramSpec `ebpf:"uprobe_runtime_gcMarkDone"`
+	UprobeRuntimeGcStart               *ebpf.ProgramSpec `ebpf:"uprobe_runtime_gcStart"`
 	UprobeRuntimeGcsweep               *ebpf.ProgramSpec `ebpf:"uprobe_runtime_gcsweep"`
 	UprobeRuntimeGlobrunqget           *ebpf.ProgramSpec `ebpf:"uprobe_runtime_globrunqget"`
 	UprobeRuntimeGoexit0               *ebpf.ProgramSpec `ebpf:"uprobe_runtime_goexit0"`
@@ -76,6 +74,7 @@ type bpfProgramSpecs struct {
 	UprobeRuntimeRunqsteal             *ebpf.ProgramSpec `ebpf:"uprobe_runtime_runqsteal"`
 	UprobeRuntimeStartTheWorldWithSema *ebpf.ProgramSpec `ebpf:"uprobe_runtime_startTheWorldWithSema"`
 	UprobeRuntimeStopTheWorldWithSema  *ebpf.ProgramSpec `ebpf:"uprobe_runtime_stopTheWorldWithSema"`
+	UprobeRuntimeTraceGCSweepDone      *ebpf.ProgramSpec `ebpf:"uprobe_runtime_traceGCSweepDone"`
 }
 
 // bpfMapSpecs contains maps before they are loaded into the kernel.
@@ -83,9 +82,10 @@ type bpfProgramSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfMapSpecs struct {
 	Events    *ebpf.MapSpec `ebpf:"events"`
+	GcTimeMap *ebpf.MapSpec `ebpf:"gc_time_map"`
+	GrTimeMap *ebpf.MapSpec `ebpf:"gr_time_map"`
 	Heap      *ebpf.MapSpec `ebpf:"heap"`
 	MemMap    *ebpf.MapSpec `ebpf:"mem_map"`
-	TimeMap   *ebpf.MapSpec `ebpf:"time_map"`
 	UprobeMap *ebpf.MapSpec `ebpf:"uprobe_map"`
 }
 
@@ -109,18 +109,20 @@ func (o *bpfObjects) Close() error {
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfMaps struct {
 	Events    *ebpf.Map `ebpf:"events"`
+	GcTimeMap *ebpf.Map `ebpf:"gc_time_map"`
+	GrTimeMap *ebpf.Map `ebpf:"gr_time_map"`
 	Heap      *ebpf.Map `ebpf:"heap"`
 	MemMap    *ebpf.Map `ebpf:"mem_map"`
-	TimeMap   *ebpf.Map `ebpf:"time_map"`
 	UprobeMap *ebpf.Map `ebpf:"uprobe_map"`
 }
 
 func (m *bpfMaps) Close() error {
 	return _BpfClose(
 		m.Events,
+		m.GcTimeMap,
+		m.GrTimeMap,
 		m.Heap,
 		m.MemMap,
-		m.TimeMap,
 		m.UprobeMap,
 	)
 }
@@ -130,7 +132,8 @@ func (m *bpfMaps) Close() error {
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfPrograms struct {
 	UprobeRuntimeExecute               *ebpf.Program `ebpf:"uprobe_runtime_execute"`
-	UprobeRuntimeGcDrain               *ebpf.Program `ebpf:"uprobe_runtime_gcDrain"`
+	UprobeRuntimeGcMarkDone            *ebpf.Program `ebpf:"uprobe_runtime_gcMarkDone"`
+	UprobeRuntimeGcStart               *ebpf.Program `ebpf:"uprobe_runtime_gcStart"`
 	UprobeRuntimeGcsweep               *ebpf.Program `ebpf:"uprobe_runtime_gcsweep"`
 	UprobeRuntimeGlobrunqget           *ebpf.Program `ebpf:"uprobe_runtime_globrunqget"`
 	UprobeRuntimeGoexit0               *ebpf.Program `ebpf:"uprobe_runtime_goexit0"`
@@ -140,12 +143,14 @@ type bpfPrograms struct {
 	UprobeRuntimeRunqsteal             *ebpf.Program `ebpf:"uprobe_runtime_runqsteal"`
 	UprobeRuntimeStartTheWorldWithSema *ebpf.Program `ebpf:"uprobe_runtime_startTheWorldWithSema"`
 	UprobeRuntimeStopTheWorldWithSema  *ebpf.Program `ebpf:"uprobe_runtime_stopTheWorldWithSema"`
+	UprobeRuntimeTraceGCSweepDone      *ebpf.Program `ebpf:"uprobe_runtime_traceGCSweepDone"`
 }
 
 func (p *bpfPrograms) Close() error {
 	return _BpfClose(
 		p.UprobeRuntimeExecute,
-		p.UprobeRuntimeGcDrain,
+		p.UprobeRuntimeGcMarkDone,
+		p.UprobeRuntimeGcStart,
 		p.UprobeRuntimeGcsweep,
 		p.UprobeRuntimeGlobrunqget,
 		p.UprobeRuntimeGoexit0,
@@ -155,6 +160,7 @@ func (p *bpfPrograms) Close() error {
 		p.UprobeRuntimeRunqsteal,
 		p.UprobeRuntimeStartTheWorldWithSema,
 		p.UprobeRuntimeStopTheWorldWithSema,
+		p.UprobeRuntimeTraceGCSweepDone,
 	)
 }
 

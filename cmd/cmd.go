@@ -55,6 +55,8 @@ func goroutineCommandFunc(command *cobra.Command, args []string) {
 
 func gcCommandFunc(command *cobra.Command, args []string) {
 	fmt.Println("gcCommandFunc")
+	user.ObserveGC()
+	//select {}
 }
 
 func mallocCommandFunc(command *cobra.Command, args []string) {

@@ -1,16 +1,24 @@
 #include "common.h"
 #include "bpf_tracing.h"
 
-//var gorEvent = map[uint32] string { 1 : "create", 2 : "put global g", 3 : "get global g", 4 : "steal", 5 : "exit" }
-
 static const u32 create = 1;
 static const u32 put_global = 2;
 static const u32 get_global = 3;
 static const u32 steal = 4;
 static const u32 exit = 5;
 
+struct gorevent
+{
+    u64 fn;
+    u64 time;
+    u32 event;
+    u32 pid;
+    s64 goid;
+};
+
+//高阶用法，改为Map堆中创建数据结构
 struct
-{ //高阶用法，改为Map堆中创建数据结构
+{
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
     __uint(max_entries, 1);
     __type(key, int);
@@ -24,6 +32,11 @@ static struct gorevent *get_event()
     event = bpf_map_lookup_elem(&heap, &zero);
     if (!event)
         return NULL;
+    event->fn = 0;
+    event->time = 0;
+    event->event = 0;
+    event->pid = 0;
+    event->goid = 0;
     return event;
 }
 
@@ -36,28 +49,25 @@ struct bpf_map_def SEC("maps") uprobe_map = {
     .max_entries = 4,
 };
 
-struct gorevent
-{
-    u64 fn;
-    u64 mid;
-    u64 time;
-    u32 event;
-    u32 pid;
-    u32 pid2;
-    s64 goid;
-};
-
 struct bpf_map_def SEC("maps") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
+    .max_entries = 1024,
 };
 
 const struct gorevent *unused __attribute__((unused));
 
-struct bpf_map_def SEC("maps") time_map = {
+struct bpf_map_def SEC("maps") gr_time_map = {
     .type = BPF_MAP_TYPE_HASH,
     .key_size = sizeof(s64),
     .value_size = sizeof(__u64),
-    .max_entries = 512,
+    .max_entries = 128,
+};
+
+struct bpf_map_def SEC("maps") gc_time_map = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(__u64),
+    .max_entries = 128,
 };
 
 struct bpf_map_def SEC("maps") mem_map = {
@@ -108,6 +118,51 @@ struct g
     u32 atomicstatus;
     u32 stackLock;
     s64 goid;
+
+    u64 schedlink;
+    s64 waitsince;
+    u8 waitreason;
+
+    u8 preempt;       // preemption signal, duplicates stackguard0 = stackpreempt
+    u8 preemptStop;   // transition to _Gpreempted on preemption; otherwise, just deschedule
+    u8 preemptShrink; // shrink stack at synchronous safe point
+
+    // asyncSafePoint is set if g is stopped at an asynchronous
+    // safe point. This means there are frames on the stack
+    // without precise pointer information.
+    u8 asyncSafePoint;
+
+    u8 paniconfault; // panic (instead of crash) on unexpected fault address
+    u8 gcscandone;   // g has scanned stack; protected by _Gscan bit in status
+    u8 throwsplit;   // must not split stack
+                     // activeStackChans indicates that there are unlocked channels
+                     // pointing into this goroutine's stack. If true, stack
+                     // copying needs to acquire channel locks to protect these
+                     // areas of the stack.
+    u8 activeStackChans;
+    // parkingOnChan indicates that the goroutine is about to
+    // park on a chansend or chanrecv. Used to signal an unsafe point
+    // for stack shrinking. It's a boolean value, but is updated atomically.
+    u8 parkingOnChan;
+
+    u8 raceignore;     // ignore race detection events
+    u8 sysblocktraced; // StartTrace has emitted EvGoInSyscall about this goroutine
+    u8 tracking;       // whether we're tracking this G for sched latency statistics
+    u8 trackingSeq;    // used to decide whether to track this G
+    s64 runnableStamp; // timestamp of when the G last became runnable, only used when tracking
+    s64 runnableTime;  // the amount of time spent runnable, cleared when running, only used when tracking
+    s64 sysexitticks;  // cputicks when syscall has returned (for tracing)
+    u64 traceseq;      // trace event sequencer
+    u64 tracelastp;    // last P emitted an event for this goroutine
+    u64 lockedm;
+    u32 sig;
+    struct slice writebuf;
+    u64 sigcode0;
+    u64 sigcode1;
+    u64 sigpc;
+    u64 gopc;      // pc of go statement that created this goroutine
+    u64 ancestors; // ancestor information goroutine(s) that created this goroutine (only used if debug.tracebackancestors)
+    u64 startpc;   // pc of goroutine function
 };
 
 struct p
@@ -117,12 +172,26 @@ struct p
     u32 status;
 };
 
-// const s32 tlsSlots = 6;
+struct gsignalStack
+{
+};
+
+struct sigset
+{
+};
 
 struct m
 {
     u64 g0;
     struct gobuf morebuf;
+    u32 divmod;
+    u32 _;
+    u64 procid;
+    u64 gsignal;
+
+    struct gsignalStack goSigStack;
+    u64 sigmask;
+
     u64 tls[6];
     u64 mstartfn;
     u64 curg;
@@ -165,7 +234,7 @@ int uprobe_runtime_newproc1(struct pt_regs *ctx)
 }
 
 //放入全局队列
-//func runqputslow(_p_ *p, gp *g, h, t uint32) bool
+// func runqputslow(_p_ *p, gp *g, h, t uint32) bool
 SEC("uprobe/runtime.runqputslow")
 int uprobe_runtime_runqputslow(struct pt_regs *ctx)
 {
@@ -189,7 +258,7 @@ int uprobe_runtime_runqputslow(struct pt_regs *ctx)
 }
 
 //从全局队列取
-//func globrunqget(_p_ *p, max int32) * g
+// func globrunqget(_p_ *p, max int32) * g
 SEC("uprobe/runtime.globrunqget")
 int uprobe_runtime_globrunqget(struct pt_regs *ctx)
 {
@@ -210,7 +279,7 @@ int uprobe_runtime_globrunqget(struct pt_regs *ctx)
 
 // Steal half of elements from local runnable queue of p2
 //从其他队列偷
-//func runqsteal(_p_, p2 *p, stealRunNextG bool) *g
+// func runqsteal(_p_, p2 *p, stealRunNextG bool) *g
 SEC("uprobe/runtime.runqsteal")
 int uprobe_runtime_runqsteal(struct pt_regs *ctx)
 {
@@ -220,13 +289,11 @@ int uprobe_runtime_runqsteal(struct pt_regs *ctx)
 
     struct p ps2;
     bpf_probe_read(&ps2, sizeof(ps2), (void *)(ctx->rbx));
-    // bpf_printk("runqput: %lld", gs.goid);
     struct gorevent *event;
     event = get_event();
     if (!event)
         return 0;
     event->pid = ps1.id;
-    event->pid2 = ps2.id;
     event->event = steal;
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
 
@@ -239,17 +306,13 @@ int uprobe_runtime_execute(struct pt_regs *ctx)
 
     struct g gs;
     bpf_probe_read(&gs, sizeof(gs), (void *)(ctx->rax));
-    // bpf_printk("execute: %lld", gs.goid);
-
-    __u64 *valp = bpf_map_lookup_elem(&time_map, &gs.goid);
+    u64 *valp = bpf_map_lookup_elem(&gr_time_map, &gs.goid);
     if (!valp)
     {
-        __u64 time1 = bpf_ktime_get_ns();
-        //  bpf_printk("time %lld", time1);
-        bpf_map_update_elem(&time_map, &gs.goid, &time1, BPF_ANY);
+        u64 time1 = bpf_ktime_get_ns();
+        bpf_map_update_elem(&gr_time_map, &gs.goid, &time1, BPF_ANY);
         return 0;
     }
-
     return 0;
 }
 
@@ -259,17 +322,16 @@ int uprobe_runtime_goexit0(struct pt_regs *ctx)
 
     struct g gs;
     bpf_probe_read(&gs, sizeof(gs), (void *)(ctx->rax));
-
-    __u64 *time1 = bpf_map_lookup_elem(&time_map, &gs.goid);
-    __u64 t1 = 0;
+    u64 *time1 = bpf_map_lookup_elem(&gr_time_map, &gs.goid);
+    u64 t1 = 0;
     bpf_probe_read(&t1, sizeof(t1), (void *)time1);
-    __u64 time2 = bpf_ktime_get_ns();
-    // bpf_printk("goexit0: %lld,%lld ns", gs.goid, time2 - t1);
-    bpf_map_delete_elem(&time_map, &gs.goid);
+    bpf_map_delete_elem(&gr_time_map, &gs.goid);
     struct gorevent *event;
     event = get_event();
     if (!event)
         return 0;
+    u64 time2 = bpf_ktime_get_ns();
+    event->fn = gs.startpc;
     event->goid = gs.goid;
     event->event = exit;
     event->time = time2 - t1;
@@ -325,26 +387,36 @@ int uprobe_runtime_goexit0(struct pt_regs *ctx)
 // c. GC在后台执行并发扫描，并响应分配
 
 // 第二阶段 扫描标记
-SEC("uprobe/runtime.gcBgMarkWorker")
-int uprobe_runtime_gcDrain(struct pt_regs *ctx)
+SEC("uprobe/runtime.gcStart")
+int uprobe_runtime_gcStart(struct pt_regs *ctx)
 {
-    bpf_printk("gcBgMarkWorker");
+    u64 pid = bpf_get_current_pid_tgid();
+    u64 ts = bpf_ktime_get_ns();
+    bpf_map_update_elem(&gc_time_map, &pid, &ts, BPF_ANY);
+    bpf_printk("gcStart");
     return 0;
 }
 
-// //第三阶段 标记终止
-// SEC("uprobe/runtime.gcMarkDone")
-// int uprobe_runtime_gcMarkDone(struct pt_regs *ctx)
-// {
-//     bpf_printk("gcMarkDone");
-//     return 0;
-// }
+//第三阶段 标记终止
+SEC("uprobe/runtime.gcMarkDone")
+int uprobe_runtime_gcMarkDone(struct pt_regs *ctx)
+{
+    bpf_printk("gcMarkDone");
+    return 0;
+}
 
 // 第四阶段 清理
 SEC("uprobe/runtime.gcSweep")
 int uprobe_runtime_gcsweep(struct pt_regs *ctx)
 {
     bpf_printk("gcSweep");
+    return 0;
+}
+
+SEC("uprobe/runtime.traceGCSweepDone")
+int uprobe_runtime_traceGCSweepDone(struct pt_regs *ctx)
+{
+    bpf_printk("traceGCSweepDone");
     return 0;
 }
 
@@ -380,9 +452,9 @@ struct gotype
 SEC("uprobe/runtime.mallocgc")
 int uprobe_runtime_mallocgc(struct pt_regs *ctx)
 {
-    //struct g gs;
+    // struct g gs;
     __u64 siz = ctx->rax;
-    //bpf_probe_read(&siz, sizeof(siz), (void *)(ctx->rax));
+    // bpf_probe_read(&siz, sizeof(siz), (void *)(ctx->rax));
 
     // struct gotype gt;
     // bpf_probe_read(&gt, -sizeof(gt), (void *)(ctx->rbx));

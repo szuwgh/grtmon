@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
-	"testgo/check"
-	"time"
+	//"runtime"
+	// "testgo/check"
+	// "time"
+	//	"os"
 )
 
 type A struct {
@@ -17,15 +19,16 @@ func a() {
 }
 
 func main() {
+	//runtime.StartTrace()
 	//runtime.GOMAXPROCS(1)
-	var i int = 101
-	for {
+	// var i int = 101
+	// for {
 
-		check.Ok(i)
-		i++
-		time.Sleep(2 * time.Second)
-	}
-	//a()
-	//runtime.GC()
-	select {}
+	// 	check.Ok(i)
+	// 	i++
+	// 	time.Sleep(2 * time.Second)
+	// }
+	a()
+	runtime.GC()
+	//select {}
 }
