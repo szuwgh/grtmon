@@ -13,6 +13,12 @@ import (
 	"github.com/cilium/ebpf"
 )
 
+type bpfGcevent struct {
+	Time  uint64
+	Event uint32
+	_     [4]byte
+}
+
 type bpfGorevent struct {
 	Fn    uint64
 	Time  uint64
@@ -68,13 +74,13 @@ type bpfProgramSpecs struct {
 	UprobeRuntimeGcsweep               *ebpf.ProgramSpec `ebpf:"uprobe_runtime_gcsweep"`
 	UprobeRuntimeGlobrunqget           *ebpf.ProgramSpec `ebpf:"uprobe_runtime_globrunqget"`
 	UprobeRuntimeGoexit0               *ebpf.ProgramSpec `ebpf:"uprobe_runtime_goexit0"`
+	UprobeRuntimeGoexit1               *ebpf.ProgramSpec `ebpf:"uprobe_runtime_goexit1"`
 	UprobeRuntimeMallocgc              *ebpf.ProgramSpec `ebpf:"uprobe_runtime_mallocgc"`
 	UprobeRuntimeNewproc1              *ebpf.ProgramSpec `ebpf:"uprobe_runtime_newproc1"`
 	UprobeRuntimeRunqputslow           *ebpf.ProgramSpec `ebpf:"uprobe_runtime_runqputslow"`
 	UprobeRuntimeRunqsteal             *ebpf.ProgramSpec `ebpf:"uprobe_runtime_runqsteal"`
 	UprobeRuntimeStartTheWorldWithSema *ebpf.ProgramSpec `ebpf:"uprobe_runtime_startTheWorldWithSema"`
 	UprobeRuntimeStopTheWorldWithSema  *ebpf.ProgramSpec `ebpf:"uprobe_runtime_stopTheWorldWithSema"`
-	UprobeRuntimeTraceGCSweepDone      *ebpf.ProgramSpec `ebpf:"uprobe_runtime_traceGCSweepDone"`
 }
 
 // bpfMapSpecs contains maps before they are loaded into the kernel.
@@ -83,8 +89,10 @@ type bpfProgramSpecs struct {
 type bpfMapSpecs struct {
 	Events    *ebpf.MapSpec `ebpf:"events"`
 	GcTimeMap *ebpf.MapSpec `ebpf:"gc_time_map"`
+	GmHistMap *ebpf.MapSpec `ebpf:"gm_hist_map"`
 	GrTimeMap *ebpf.MapSpec `ebpf:"gr_time_map"`
 	Heap      *ebpf.MapSpec `ebpf:"heap"`
+	Heap1     *ebpf.MapSpec `ebpf:"heap1"`
 	MemMap    *ebpf.MapSpec `ebpf:"mem_map"`
 	UprobeMap *ebpf.MapSpec `ebpf:"uprobe_map"`
 }
@@ -110,8 +118,10 @@ func (o *bpfObjects) Close() error {
 type bpfMaps struct {
 	Events    *ebpf.Map `ebpf:"events"`
 	GcTimeMap *ebpf.Map `ebpf:"gc_time_map"`
+	GmHistMap *ebpf.Map `ebpf:"gm_hist_map"`
 	GrTimeMap *ebpf.Map `ebpf:"gr_time_map"`
 	Heap      *ebpf.Map `ebpf:"heap"`
+	Heap1     *ebpf.Map `ebpf:"heap1"`
 	MemMap    *ebpf.Map `ebpf:"mem_map"`
 	UprobeMap *ebpf.Map `ebpf:"uprobe_map"`
 }
@@ -120,8 +130,10 @@ func (m *bpfMaps) Close() error {
 	return _BpfClose(
 		m.Events,
 		m.GcTimeMap,
+		m.GmHistMap,
 		m.GrTimeMap,
 		m.Heap,
+		m.Heap1,
 		m.MemMap,
 		m.UprobeMap,
 	)
@@ -137,13 +149,13 @@ type bpfPrograms struct {
 	UprobeRuntimeGcsweep               *ebpf.Program `ebpf:"uprobe_runtime_gcsweep"`
 	UprobeRuntimeGlobrunqget           *ebpf.Program `ebpf:"uprobe_runtime_globrunqget"`
 	UprobeRuntimeGoexit0               *ebpf.Program `ebpf:"uprobe_runtime_goexit0"`
+	UprobeRuntimeGoexit1               *ebpf.Program `ebpf:"uprobe_runtime_goexit1"`
 	UprobeRuntimeMallocgc              *ebpf.Program `ebpf:"uprobe_runtime_mallocgc"`
 	UprobeRuntimeNewproc1              *ebpf.Program `ebpf:"uprobe_runtime_newproc1"`
 	UprobeRuntimeRunqputslow           *ebpf.Program `ebpf:"uprobe_runtime_runqputslow"`
 	UprobeRuntimeRunqsteal             *ebpf.Program `ebpf:"uprobe_runtime_runqsteal"`
 	UprobeRuntimeStartTheWorldWithSema *ebpf.Program `ebpf:"uprobe_runtime_startTheWorldWithSema"`
 	UprobeRuntimeStopTheWorldWithSema  *ebpf.Program `ebpf:"uprobe_runtime_stopTheWorldWithSema"`
-	UprobeRuntimeTraceGCSweepDone      *ebpf.Program `ebpf:"uprobe_runtime_traceGCSweepDone"`
 }
 
 func (p *bpfPrograms) Close() error {
@@ -154,13 +166,13 @@ func (p *bpfPrograms) Close() error {
 		p.UprobeRuntimeGcsweep,
 		p.UprobeRuntimeGlobrunqget,
 		p.UprobeRuntimeGoexit0,
+		p.UprobeRuntimeGoexit1,
 		p.UprobeRuntimeMallocgc,
 		p.UprobeRuntimeNewproc1,
 		p.UprobeRuntimeRunqputslow,
 		p.UprobeRuntimeRunqsteal,
 		p.UprobeRuntimeStartTheWorldWithSema,
 		p.UprobeRuntimeStopTheWorldWithSema,
-		p.UprobeRuntimeTraceGCSweepDone,
 	)
 }
 

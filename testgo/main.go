@@ -1,8 +1,7 @@
 package main
 
 import (
-	"fmt"
-	//"runtime"
+	"runtime"
 	// "testgo/check"
 	// "time"
 	//	"os"
@@ -14,8 +13,11 @@ type A struct {
 
 func a() {
 	xx := make([]int, 1000)
+	yy := make([]int, 100000000)
 	a := &A{}
-	fmt.Println(xx, a)
+	xx[0] = 1
+	yy[0] = 2
+	a.aa = 1
 }
 
 func main() {

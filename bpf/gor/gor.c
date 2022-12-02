@@ -1,11 +1,15 @@
 #include "common.h"
 #include "bpf_tracing.h"
 
-static const u32 create = 1;
-static const u32 put_global = 2;
-static const u32 get_global = 3;
-static const u32 steal = 4;
-static const u32 exit = 5;
+static const u32 gor_create = 1;
+static const u32 gor_put_global = 2;
+static const u32 gor_get_global = 3;
+static const u32 gor_steal = 4;
+static const u32 gor_exit = 5;
+
+static const u32 gc_mark = 1;
+static const u32 gc_sweep = 2;
+static const u32 gc_stw = 3;
 
 struct gorevent
 {
@@ -16,6 +20,15 @@ struct gorevent
     s64 goid;
 };
 
+struct gcevent
+{
+    u64 time;
+    u32 event;
+};
+
+const struct gorevent *unused __attribute__((unused));
+const struct gcevent *unused1 __attribute__((unused));
+
 //高阶用法，改为Map堆中创建数据结构
 struct
 {
@@ -25,7 +38,15 @@ struct
     __type(value, struct gorevent);
 } heap SEC(".maps");
 
-static struct gorevent *get_event()
+struct
+{
+    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, int);
+    __type(value, struct gcevent);
+} heap1 SEC(".maps");
+
+static struct gorevent *get_gorevent()
 {
     static const int zero = 0;
     struct gorevent *event;
@@ -37,6 +58,18 @@ static struct gorevent *get_event()
     event->event = 0;
     event->pid = 0;
     event->goid = 0;
+    return event;
+}
+
+static struct gcevent *get_gcevent()
+{
+    static const int zero = 0;
+    struct gcevent *event;
+    event = bpf_map_lookup_elem(&heap1, &zero);
+    if (!event)
+        return NULL;
+    event->time = 0;
+    event->event = 0;
     return event;
 }
 
@@ -53,8 +86,6 @@ struct bpf_map_def SEC("maps") events = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,
     .max_entries = 1024,
 };
-
-const struct gorevent *unused __attribute__((unused));
 
 struct bpf_map_def SEC("maps") gr_time_map = {
     .type = BPF_MAP_TYPE_HASH,
@@ -75,6 +106,13 @@ struct bpf_map_def SEC("maps") mem_map = {
     .key_size = sizeof(__u32),
     .value_size = sizeof(__u64),
     .max_entries = 512,
+};
+
+struct bpf_map_def SEC("maps") gm_hist_map = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u64),
+    .max_entries = 128,
 };
 
 struct stack
@@ -224,11 +262,11 @@ int uprobe_runtime_newproc1(struct pt_regs *ctx)
     struct funcval fn;
     bpf_probe_read(&fn, sizeof(fn), (void *)PT_REGS_RC(ctx));
     struct gorevent *event;
-    event = get_event();
+    event = get_gorevent();
     if (!event)
         return 0;
     event->fn = fn.fn;
-    event->event = create;
+    event->event = gor_create;
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
     return 0;
 }
@@ -246,12 +284,12 @@ int uprobe_runtime_runqputslow(struct pt_regs *ctx)
     bpf_probe_read(&gs, sizeof(gs), (void *)(ctx->rbx));
     // bpf_printk("runqput: %lld", gs.goid);
     struct gorevent *event;
-    event = get_event();
+    event = get_gorevent();
     if (!event)
         return 0;
     event->goid = gs.goid;
     event->pid = ps.id;
-    event->event = put_global;
+    event->event = gor_put_global;
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
 
     return 0;
@@ -266,12 +304,12 @@ int uprobe_runtime_globrunqget(struct pt_regs *ctx)
     struct p ps;
     bpf_probe_read(&ps, sizeof(ps), (void *)(ctx->rax));
     struct gorevent *event;
-    event = get_event();
+    event = get_gorevent();
     if (!event)
         return 0;
     // event.fn = fn.fn;
     event->pid = ps.id;
-    event->event = get_global;
+    event->event = gor_get_global;
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
 
     return 0;
@@ -290,11 +328,11 @@ int uprobe_runtime_runqsteal(struct pt_regs *ctx)
     struct p ps2;
     bpf_probe_read(&ps2, sizeof(ps2), (void *)(ctx->rbx));
     struct gorevent *event;
-    event = get_event();
+    event = get_gorevent();
     if (!event)
         return 0;
     event->pid = ps1.id;
-    event->event = steal;
+    event->event = gor_steal;
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
 
     return 0;
@@ -327,13 +365,36 @@ int uprobe_runtime_goexit0(struct pt_regs *ctx)
     bpf_probe_read(&t1, sizeof(t1), (void *)time1);
     bpf_map_delete_elem(&gr_time_map, &gs.goid);
     struct gorevent *event;
-    event = get_event();
+    event = get_gorevent();
     if (!event)
         return 0;
     u64 time2 = bpf_ktime_get_ns();
     event->fn = gs.startpc;
     event->goid = gs.goid;
-    event->event = exit;
+    event->event = gor_exit;
+    event->time = time2 - t1;
+    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
+    return 0;
+}
+
+SEC("uprobe/runtime.goexit0")
+int uprobe_runtime_goexit1(struct pt_regs *ctx)
+{
+
+    struct g gs;
+    bpf_probe_read(&gs, sizeof(gs), (void *)(ctx->rax));
+    u64 *time1 = bpf_map_lookup_elem(&gr_time_map, &gs.goid);
+    u64 t1 = 0;
+    bpf_probe_read(&t1, sizeof(t1), (void *)time1);
+    bpf_map_delete_elem(&gr_time_map, &gs.goid);
+    struct gorevent *event;
+    event = get_gorevent();
+    if (!event)
+        return 0;
+    u64 time2 = bpf_ktime_get_ns();
+    event->fn = gs.startpc;
+    event->goid = gs.goid;
+    event->event = gor_exit;
     event->time = time2 - t1;
     bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
     return 0;
@@ -390,10 +451,15 @@ int uprobe_runtime_goexit0(struct pt_regs *ctx)
 SEC("uprobe/runtime.gcStart")
 int uprobe_runtime_gcStart(struct pt_regs *ctx)
 {
-    u64 pid = bpf_get_current_pid_tgid();
-    u64 ts = bpf_ktime_get_ns();
-    bpf_map_update_elem(&gc_time_map, &pid, &ts, BPF_ANY);
-    bpf_printk("gcStart");
+
+    u32 key = 1;
+    u64 *valp = bpf_map_lookup_elem(&gc_time_map, &key);
+    if (!valp)
+    {
+        u64 ts = bpf_ktime_get_ns();
+        bpf_map_update_elem(&gc_time_map, &key, &ts, BPF_ANY);
+        return 0;
+    }
     return 0;
 }
 
@@ -401,7 +467,23 @@ int uprobe_runtime_gcStart(struct pt_regs *ctx)
 SEC("uprobe/runtime.gcMarkDone")
 int uprobe_runtime_gcMarkDone(struct pt_regs *ctx)
 {
-    bpf_printk("gcMarkDone");
+    u32 key = 1;
+    u64 *ts1 = bpf_map_lookup_elem(&gc_time_map, &key);
+    if (!ts1)
+    {
+        return 0;
+    }
+    struct gcevent *event;
+    event = get_gcevent();
+    if (!event)
+        return 0;
+    u64 t1 = 0;
+    u64 t2 = bpf_ktime_get_ns();
+    bpf_probe_read(&t1, sizeof(t1), (void *)ts1);
+    event->event = gc_mark;
+    event->time = t2 - t1;
+    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
+    bpf_map_delete_elem(&gc_time_map, &key);
     return 0;
 }
 
@@ -409,14 +491,14 @@ int uprobe_runtime_gcMarkDone(struct pt_regs *ctx)
 SEC("uprobe/runtime.gcSweep")
 int uprobe_runtime_gcsweep(struct pt_regs *ctx)
 {
-    bpf_printk("gcSweep");
-    return 0;
-}
-
-SEC("uprobe/runtime.traceGCSweepDone")
-int uprobe_runtime_traceGCSweepDone(struct pt_regs *ctx)
-{
-    bpf_printk("traceGCSweepDone");
+    u32 key = 2;
+    u64 *valp = bpf_map_lookup_elem(&gc_time_map, &key);
+    if (!valp)
+    {
+        u64 ts = bpf_ktime_get_ns();
+        bpf_map_update_elem(&gc_time_map, &key, &ts, BPF_ANY);
+        return 0;
+    }
     return 0;
 }
 
@@ -424,7 +506,14 @@ int uprobe_runtime_traceGCSweepDone(struct pt_regs *ctx)
 SEC("uprobe/runtime.stopTheWorldWithSema")
 int uprobe_runtime_stopTheWorldWithSema(struct pt_regs *ctx)
 {
-    bpf_printk("stopTheWorldWithSema");
+    u32 key = 3;
+    u64 *valp = bpf_map_lookup_elem(&gc_time_map, &key);
+    if (!valp)
+    {
+        u64 ts = bpf_ktime_get_ns();
+        bpf_map_update_elem(&gc_time_map, &key, &ts, BPF_ANY);
+        return 0;
+    }
     return 0;
 }
 
@@ -432,7 +521,43 @@ int uprobe_runtime_stopTheWorldWithSema(struct pt_regs *ctx)
 SEC("uprobe/runtime.startTheWorldWithSema")
 int uprobe_runtime_startTheWorldWithSema(struct pt_regs *ctx)
 {
-    bpf_printk("startTheWorldWithSema");
+    u32 key1 = 2;
+    u64 *ts1 = bpf_map_lookup_elem(&gc_time_map, &key1);
+    if (ts1)
+    {
+        struct gcevent *event;
+        event = get_gcevent();
+        if (event)
+        {
+            u64 t1 = 0;
+            u64 t2 = bpf_ktime_get_ns();
+            bpf_probe_read(&t1, sizeof(t1), (void *)ts1);
+            event->event = gc_sweep;
+            event->time = t2 - t1;
+            bpf_map_delete_elem(&gc_time_map, &key1);
+            bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
+        }
+    }
+
+    u32 key2 = 3;
+    u64 *ts2 = bpf_map_lookup_elem(&gc_time_map, &key2);
+
+    if (ts2)
+    {
+        struct gcevent *event;
+        event = get_gcevent();
+        if (event)
+        {
+            u64 t1 = 0;
+            u64 t2 = bpf_ktime_get_ns();
+            bpf_probe_read(&t1, sizeof(t1), (void *)ts2);
+            event->event = gc_stw;
+            event->time = t2 - t1;
+            bpf_map_delete_elem(&gc_time_map, &key2);
+            bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
+        }
+    }
+
     return 0;
 }
 
@@ -443,8 +568,8 @@ struct gotype
 };
 
 // 小于 16B 的用 mcache 中的 tiny 分配器分配；
-// 大于 32KB 的对象直接使用堆区分配；
 // 16B 和 32KB 之间的对象用 mspan 分配。
+// 大于 32KB 的对象直接使用堆区分配；
 
 // Allocate an object of size bytes.
 // Small objects are allocated from the per-P cache's free lists.
@@ -452,14 +577,42 @@ struct gotype
 SEC("uprobe/runtime.mallocgc")
 int uprobe_runtime_mallocgc(struct pt_regs *ctx)
 {
-    // struct g gs;
+
     __u64 siz = ctx->rax;
-    // bpf_probe_read(&siz, sizeof(siz), (void *)(ctx->rax));
-
-    // struct gotype gt;
-    // bpf_probe_read(&gt, -sizeof(gt), (void *)(ctx->rbx));
-
-    bpf_printk("siz: %lld", siz);
+    u64 initval = 1;
+    if (siz < 16)
+    {
+        u32 key = 0;
+        u64 *valp = bpf_map_lookup_elem(&gm_hist_map, &key);
+        if (!valp)
+        {
+            bpf_map_update_elem(&gm_hist_map, &key, &initval, BPF_ANY);
+            return 0;
+        }
+        __sync_fetch_and_add(valp, 1);
+    }
+    else if (siz >= 16 && siz < 32758)
+    {
+        u32 key = 1;
+        u64 *valp = bpf_map_lookup_elem(&gm_hist_map, &key);
+        if (!valp)
+        {
+            bpf_map_update_elem(&gm_hist_map, &key, &initval, BPF_ANY);
+            return 0;
+        }
+        __sync_fetch_and_add(valp, 1);
+    }
+    else
+    {
+        u32 key = 2;
+        u64 *valp = bpf_map_lookup_elem(&gm_hist_map, &key);
+        if (!valp)
+        {
+            bpf_map_update_elem(&gm_hist_map, &key, &initval, BPF_ANY);
+            return 0;
+        }
+        __sync_fetch_and_add(valp, 1);
+    }
     return 0;
 }
 

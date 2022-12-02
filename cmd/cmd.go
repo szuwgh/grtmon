@@ -61,4 +61,5 @@ func gcCommandFunc(command *cobra.Command, args []string) {
 
 func mallocCommandFunc(command *cobra.Command, args []string) {
 	fmt.Println("mallocCommandFunc")
+	user.ObserveMalloc()
 }
