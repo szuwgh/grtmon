@@ -313,13 +313,76 @@ func ObserveMalloc() {
 func printLogHist(type_ []string, vals []int, val_type string) {
 	stars_max := 40
 	idx_max := -1
+	t_max, val, val_max := 0, 0, 0
+	var low, high uint64
+	var stars, width, i int
+
+	for i = 0; i < len(vals); i++ {
+		val = vals[i]
+		if val > 0 {
+			idx_max = i
+		}
+		if val > val_max {
+			val_max = val
+		}
+		if len(type_[i]) > t_max {
+			t_max = len(type_[i])
+		}
+
+	}
+
+	if idx_max < 0 {
+		return
+	}
+
+	// w1,  := 0
+
+	// if idx_max <= 32 {
+	// 	w1 = 0
+	// 	w2 = 14
+	// } else {
+	// 	w1 = 0
+	// 	w2 = 29
+	// }
+	//f := ""
+	fmt.Printf("%*s%-*s : count    distribution\n", 0, "", t_max+4, val_type)
+
+	if idx_max <= 32 {
+		stars = stars_max
+	} else {
+		stars = stars_max / 2
+	}
+
+	for i = 0; i <= idx_max; i++ {
+		low = (uint64(1) << (i + 1)) >> 1
+		high = (uint64(1) << (i + 1)) - 1
+		if low == high {
+			low -= 1
+		}
+		val = vals[i]
+		//var width int
+		// if idx_max <= 32 {
+		// 	width = 10
+		// } else {
+		// 	width = 20
+		// }
+		width = t_max + 4
+		fmt.Printf("%-*s : %-8d |", width, type_[i], val)
+		print_stars(val, val_max, stars)
+		fmt.Print("|\n")
+	}
+}
+
+func printLog2Hist(vals []int, val_type string) {
+	stars_max := 40
+	idx_max := -1
 	val, val_max := 0, 0
 	var low, high uint64
 	var stars, width, i int
 
 	for i = 0; i < len(vals); i++ {
 		val = vals[i]
-		if len(type_) > 0 {
+		if val > 0 {
 			idx_max = i
 		}
 		if val > val_max {
@@ -334,14 +397,14 @@ func printLogHist(type_ []string, vals []int, val_type string) {
 	w1, w2 := 0, 0
 
 	if idx_max <= 32 {
-		w1 = 5
-		w2 = 19
+		w1 = 10
+		w2 = 14
 	} else {
 		w1 = 15
 		w2 = 29
 	}
 	//f := ""
-	fmt.Sprintln("%*s%-*s : count    distribution\n", w1, "", w2, val_type)
+	fmt.Printf("%*s%-*s : count    distribution\n", w1, "", w2, val_type)
 
 	if idx_max <= 32 {
 		stars = stars_max
@@ -362,7 +425,7 @@ func printLogHist(type_ []string, vals []int, val_type string) {
 		} else {
 			width = 20
 		}
-		fmt.Printf("%*lld -> %-*lld : %-8d |", width, low, width, high, val)
+		fmt.Printf("%*d -> %-*d : %-8d |", width, low, width, high, val)
 		print_stars(val, val_max, stars)
 		fmt.Print("|\n")
 	}
