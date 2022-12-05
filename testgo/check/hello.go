@@ -27,9 +27,9 @@ func aaa() {
 
 func Ok(i int) {
 	if i%2 == 0 {
-		for j := 0; j < 1024; j++ {
-			go Hello(i)
-		}
+
+		go Hello(i)
+
 	} else {
 		go Bye(i)
 	}

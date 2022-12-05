@@ -1,6 +1,12 @@
 #include "common.h"
 #include "bpf_tracing.h"
 
+#define _NumSizeClasses 68
+#define smallSizeMax 1024
+#define smallSizeDiv 8
+#define _MaxSmallSize 32768
+#define largeSizeDiv 128
+
 static const u32 gor_create = 1;
 static const u32 gor_put_global = 2;
 static const u32 gor_get_global = 3;
@@ -10,6 +16,9 @@ static const u32 gor_exit = 5;
 static const u32 gc_mark = 1;
 static const u32 gc_sweep = 2;
 static const u32 gc_stw = 3;
+
+u8 size_to_class8[smallSizeMax / smallSizeDiv + 1] = {0, 1, 2, 3, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16, 17, 17, 18, 18, 19, 19, 19, 19, 20, 20, 20, 20, 21, 21, 21, 21, 22, 22, 22, 22, 23, 23, 23, 23, 24, 24, 24, 24, 25, 25, 25, 25, 26, 26, 26, 26, 27, 27, 27, 27, 27, 27, 27, 27, 28, 28, 28, 28, 28, 28, 28, 28, 29, 29, 29, 29, 29, 29, 29, 29, 30, 30, 30, 30, 30, 30, 30, 30, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32};
+u8 size_to_class128[(_MaxSmallSize - smallSizeMax) / largeSizeDiv + 1] = {32, 33, 34, 35, 36, 37, 37, 38, 38, 39, 39, 40, 40, 40, 41, 41, 41, 42, 43, 43, 44, 44, 44, 44, 44, 45, 45, 45, 45, 45, 45, 46, 46, 46, 46, 47, 47, 47, 47, 47, 47, 48, 48, 48, 49, 49, 50, 51, 51, 51, 51, 51, 51, 51, 51, 51, 51, 52, 52, 52, 52, 52, 52, 52, 52, 52, 52, 53, 53, 54, 54, 54, 54, 55, 55, 55, 55, 55, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 57, 57, 57, 57, 57, 57, 57, 57, 57, 57, 58, 58, 58, 58, 58, 58, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 59, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 61, 61, 61, 61, 61, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 62, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 66, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67, 67};
 
 struct gorevent
 {
@@ -109,6 +118,13 @@ struct bpf_map_def SEC("maps") mem_map = {
 };
 
 struct bpf_map_def SEC("maps") gm_hist_map = {
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u64),
+    .max_entries = 128,
+};
+
+struct bpf_map_def SEC("maps") gr_hist_map = {
     .type = BPF_MAP_TYPE_ARRAY,
     .key_size = sizeof(u32),
     .value_size = sizeof(u64),
@@ -357,7 +373,6 @@ int uprobe_runtime_execute(struct pt_regs *ctx)
 SEC("uprobe/runtime.goexit0")
 int uprobe_runtime_goexit0(struct pt_regs *ctx)
 {
-
     struct g gs;
     bpf_probe_read(&gs, sizeof(gs), (void *)(ctx->rax));
     u64 *time1 = bpf_map_lookup_elem(&gr_time_map, &gs.goid);
@@ -377,6 +392,20 @@ int uprobe_runtime_goexit0(struct pt_regs *ctx)
     return 0;
 }
 
+static u32 get_fibonacci_sequence(u64 t)
+{
+    u32 i = 0;
+    u64 low, high;
+    for (i = 0; i < 22; i++)
+    {
+        low = (1ULL << (i + 1)) >> 1;
+        high = (1ULL << (i + 1)) - 1;
+        if (t >= low && t < high)
+            return i;
+    }
+    return 22;
+}
+
 SEC("uprobe/runtime.goexit0")
 int uprobe_runtime_goexit1(struct pt_regs *ctx)
 {
@@ -387,16 +416,18 @@ int uprobe_runtime_goexit1(struct pt_regs *ctx)
     u64 t1 = 0;
     bpf_probe_read(&t1, sizeof(t1), (void *)time1);
     bpf_map_delete_elem(&gr_time_map, &gs.goid);
-    struct gorevent *event;
-    event = get_gorevent();
-    if (!event)
-        return 0;
+
     u64 time2 = bpf_ktime_get_ns();
-    event->fn = gs.startpc;
-    event->goid = gs.goid;
-    event->event = gor_exit;
-    event->time = time2 - t1;
-    bpf_perf_event_output(ctx, &events, BPF_F_CURRENT_CPU, event, sizeof(*event));
+    u64 t = (time2 - t1) / 1000;
+    u32 key = get_fibonacci_sequence(t);
+    u64 *valp = bpf_map_lookup_elem(&gr_hist_map, &key);
+    if (!valp)
+    {
+        u64 initval = 1;
+        bpf_map_update_elem(&gr_hist_map, &key, &initval, BPF_ANY);
+        return 0;
+    }
+    __sync_fetch_and_add(valp, 1);
     return 0;
 }
 
@@ -567,6 +598,17 @@ struct gotype
     u64 ptrdata;
 };
 
+static int divRoundUp(int n, int a)
+{
+    if (a == 0)
+    {
+        return 0;
+    }
+    // a is generally a power of two. This will get inlined and
+    // the compiler will optimize the division.
+    return (n + a - 1) / a;
+}
+
 // 小于 16B 的用 mcache 中的 tiny 分配器分配；
 // 16B 和 32KB 之间的对象用 mspan 分配。
 // 大于 32KB 的对象直接使用堆区分配；
@@ -580,7 +622,7 @@ int uprobe_runtime_mallocgc(struct pt_regs *ctx)
 
     __u64 siz = ctx->rax;
     u64 initval = 1;
-    if (siz < 16)
+    if (siz <= 16)
     {
         u32 key = 0;
         u64 *valp = bpf_map_lookup_elem(&gm_hist_map, &key);
@@ -591,20 +633,32 @@ int uprobe_runtime_mallocgc(struct pt_regs *ctx)
         }
         __sync_fetch_and_add(valp, 1);
     }
-    else if (siz >= 16 && siz < 32758)
+    else if (siz > 16 && siz <= 32768) //分配的内存>16byte且<= 32k
     {
-        u32 key = 1;
-        u64 *valp = bpf_map_lookup_elem(&gm_hist_map, &key);
+
+        // u8 key = 1;
+        u32 sizeclass = 1;
+        if (siz <= smallSizeMax - 8) //如果目标大小<=1016b，就是下面的规格
+        {
+            sizeclass = size_to_class8[divRoundUp(siz, smallSizeDiv)]; //divRoundUp(siz, smallSizeDiv)
+        }
+        else
+        {
+            sizeclass = size_to_class128[divRoundUp(siz - smallSizeMax, largeSizeDiv)]; //divRoundUp(siz - smallSizeMax, largeSizeDiv)
+        }
+        // bpf_printk("sizeclass: %d", sizeclass);
+        // size = uintptr(class_to_size[sizeclass])
+        u64 *valp = bpf_map_lookup_elem(&gm_hist_map, &sizeclass);
         if (!valp)
         {
-            bpf_map_update_elem(&gm_hist_map, &key, &initval, BPF_ANY);
+            bpf_map_update_elem(&gm_hist_map, &sizeclass, &initval, BPF_ANY);
             return 0;
         }
         __sync_fetch_and_add(valp, 1);
     }
     else
     {
-        u32 key = 2;
+        u32 key = 68;
         u64 *valp = bpf_map_lookup_elem(&gm_hist_map, &key);
         if (!valp)
         {

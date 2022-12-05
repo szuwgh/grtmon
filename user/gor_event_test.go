@@ -3,8 +3,8 @@ package user
 import "testing"
 
 func Test_printLog2Hist(t *testing.T) {
-	vals := [6]int{20, 56, 78, 1, 255, 50}
-	printLog2Hist(vals[0:], "xxx")
+	vals := [30]int{20, 56, 78, 1, 255, 50, 50, 50, 50, 50, 50}
+	printLog2Hist(vals[0:], "xxx", 10)
 }
 
 func Test_printLogHist(t *testing.T) {

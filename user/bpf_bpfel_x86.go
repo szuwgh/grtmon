@@ -90,6 +90,7 @@ type bpfMapSpecs struct {
 	Events    *ebpf.MapSpec `ebpf:"events"`
 	GcTimeMap *ebpf.MapSpec `ebpf:"gc_time_map"`
 	GmHistMap *ebpf.MapSpec `ebpf:"gm_hist_map"`
+	GrHistMap *ebpf.MapSpec `ebpf:"gr_hist_map"`
 	GrTimeMap *ebpf.MapSpec `ebpf:"gr_time_map"`
 	Heap      *ebpf.MapSpec `ebpf:"heap"`
 	Heap1     *ebpf.MapSpec `ebpf:"heap1"`
@@ -119,6 +120,7 @@ type bpfMaps struct {
 	Events    *ebpf.Map `ebpf:"events"`
 	GcTimeMap *ebpf.Map `ebpf:"gc_time_map"`
 	GmHistMap *ebpf.Map `ebpf:"gm_hist_map"`
+	GrHistMap *ebpf.Map `ebpf:"gr_hist_map"`
 	GrTimeMap *ebpf.Map `ebpf:"gr_time_map"`
 	Heap      *ebpf.Map `ebpf:"heap"`
 	Heap1     *ebpf.Map `ebpf:"heap1"`
@@ -131,6 +133,7 @@ func (m *bpfMaps) Close() error {
 		m.Events,
 		m.GcTimeMap,
 		m.GmHistMap,
+		m.GrHistMap,
 		m.GrTimeMap,
 		m.Heap,
 		m.Heap1,

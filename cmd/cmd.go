@@ -22,6 +22,12 @@ var goroutineCmd = &cobra.Command{
 	Run:   goroutineCommandFunc,
 }
 
+var goroutineSeqCmd = &cobra.Command{
+	Use:   "seq",
+	Short: "observe goroutine Number sequence",
+	Run:   goroutineSeqCommandFunc,
+}
+
 var gcCmd = &cobra.Command{
 	Use:   "gc",
 	Short: "observe gc",
@@ -38,6 +44,7 @@ func init() {
 	rootCmd.AddCommand(goroutineCmd)
 	rootCmd.AddCommand(gcCmd)
 	rootCmd.AddCommand(mallocCmd)
+	goroutineCmd.AddCommand(goroutineSeqCmd)
 
 }
 
@@ -49,17 +56,18 @@ func Execute() {
 }
 
 func goroutineCommandFunc(command *cobra.Command, args []string) {
-	fmt.Println("goroutineCommandFunc")
 	user.ObserveGor()
 }
 
 func gcCommandFunc(command *cobra.Command, args []string) {
-	fmt.Println("gcCommandFunc")
 	user.ObserveGC()
 	//select {}
 }
 
 func mallocCommandFunc(command *cobra.Command, args []string) {
-	fmt.Println("mallocCommandFunc")
 	user.ObserveMalloc()
+}
+
+func goroutineSeqCommandFunc(command *cobra.Command, args []string) {
+	user.ObserveGorSeq()
 }

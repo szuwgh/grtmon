@@ -2,10 +2,12 @@ package main
 
 import (
 	"runtime"
-	// "testgo/check"
-	// "time"
-	//	"os"
+	"time"
 )
+
+// "testgo/check"
+// "time"
+//	"os"
 
 type A struct {
 	aa int
@@ -30,7 +32,11 @@ func main() {
 	// 	i++
 	// 	time.Sleep(2 * time.Second)
 	// }
-	a()
-	runtime.GC()
+	for {
+		time.Sleep(2 * time.Second)
+		a()
+		runtime.GC()
+
+	}
 	//select {}
 }
