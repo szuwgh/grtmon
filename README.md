@@ -149,5 +149,6 @@ cd user/ && go generate
 Compiled /opt/goproject/rtmon/src/grtmon/user/bpf_bpfel_x86.o
 Stripped /opt/goproject/rtmon/src/grtmon/user/bpf_bpfel_x86.o
 Wrote /opt/goproject/rtmon/src/grtmon/user/bpf_bpfel_x86.go
+cd testgo/ && go build
 go build -v -o grtmon
 ```
