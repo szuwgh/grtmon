@@ -44,6 +44,7 @@ func init() {
 	rootCmd.AddCommand(goroutineCmd)
 	rootCmd.AddCommand(gcCmd)
 	rootCmd.AddCommand(mallocCmd)
+	rootCmd.PersistentFlags().String("binpath", "", "The path to the ELF binary containing the function to trace.")
 	goroutineCmd.AddCommand(goroutineSeqCmd)
 
 }
@@ -56,18 +57,21 @@ func Execute() {
 }
 
 func goroutineCommandFunc(command *cobra.Command, args []string) {
-	user.ObserveGor()
+	binpath, _ := command.Flags().GetString("binpath")
+	user.ObserveGor(binpath)
 }
 
 func gcCommandFunc(command *cobra.Command, args []string) {
-	user.ObserveGC()
-	//select {}
+	binpath, _ := command.Flags().GetString("binpath")
+	user.ObserveGC(binpath)
 }
 
 func mallocCommandFunc(command *cobra.Command, args []string) {
-	user.ObserveMalloc()
+	binpath, _ := command.Flags().GetString("binpath")
+	user.ObserveMalloc(binpath)
 }
 
 func goroutineSeqCommandFunc(command *cobra.Command, args []string) {
-	user.ObserveGorSeq()
+	binpath, _ := command.Flags().GetString("binpath")
+	user.ObserveGorSeq(binpath)
 }

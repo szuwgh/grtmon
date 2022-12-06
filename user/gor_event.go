@@ -26,13 +26,11 @@ var gorEvent = map[uint32]string{1: "create", 2: "put global g", 3: "get global 
 
 var gcEvent = map[uint32]string{1: "mark", 2: "sweep", 3: "stw"}
 
-const gmKey0 uint32 = 0
-const gmKey1 uint32 = 1
-const gmKey2 uint32 = 2
+var memType = []string{"< 16B", "24B", "32B", "48B", "64B", "80B", "96B", "112B", "128B", "144B", "160B", "176B", "192B", "208B", "224B", "240B", "256B",
+	"288B", "320B", "352B", "384B", "416B", "448B", "480B", "512B", "576B", "640B", "704B", "768B", "896B", "1024B", "1152B", "1280B", "1408B", "1536B", "1792B", "2048B", "2304B", "2688B", "3072B", "3200B", "3456B",
+	"4096B", "4864B", "5376B", "6144B", "6528B", "6784B", "6912B", "8192B", "9472B", "9728B", "10240B", "10880B", "12288B", "13568B", "14336B", "16384B", "18432B", "19072B", "20480B", "21760B", "24576B", "27264B", "28672B", "32768B", "> 32K"}
 
 const (
-	binPath = "/opt/goproject/rtmon/src/grtmon/testgo/testgo"
-
 	newproc1    = "runtime.newproc1"
 	runqputslow = "runtime.runqputslow"
 	globrunqget = "runtime.globrunqget"
@@ -84,7 +82,7 @@ func (o *Observe) PerfEvent() {
 
 }
 
-func ObserveGor() {
+func ObserveGor(binPath string) {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 	if err := rlimit.RemoveMemlock(); err != nil {
@@ -146,7 +144,7 @@ func ObserveGor() {
 	}
 }
 
-func ObserveGorSeq() {
+func ObserveGorSeq(binPath string) {
 	if err := rlimit.RemoveMemlock(); err != nil {
 		log.Fatal(err)
 	}
@@ -181,15 +179,13 @@ func ObserveGorSeq() {
 			}
 			values = append(values, int(value))
 		}
-		//values := [3]int{int(value0), int(value1), int(value2)}
 		printLog2Hist(values, "latency(μs)", 22)
 		fmt.Println("--------------------------------------------------------------------------------------------------")
-		//log.Printf("%d, %d, %d", value0, value1, value2)
 	}
 
 }
 
-func ObserveGC() {
+func ObserveGC(binPath string) {
 	stopper := make(chan os.Signal, 1)
 	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
 	if err := rlimit.RemoveMemlock(); err != nil {
@@ -253,11 +249,7 @@ func ObserveGC() {
 
 }
 
-var memType = []string{"< 16B", "24B", "32B", "48B", "64B", "80B", "96B", "112B", "128B", "144B", "160B", "176B", "192B", "208B", "224B", "240B", "256B",
-	"288B", "320B", "352B", "384B", "416B", "448B", "480B", "512B", "576B", "640B", "704B", "768B", "896B", "1024B", "1152B", "1280B", "1408B", "1536B", "1792B", "2048B", "2304B", "2688B", "3072B", "3200B", "3456B",
-	"4096B", "4864B", "5376B", "6144B", "6528B", "6784B", "6912B", "8192B", "9472B", "9728B", "10240B", "10880B", "12288B", "13568B", "14336B", "16384B", "18432B", "19072B", "20480B", "21760B", "24576B", "27264B", "28672B", "32768B", "> 32K"}
-
-func ObserveMalloc() {
+func ObserveMalloc(binPath string) {
 	if err := rlimit.RemoveMemlock(); err != nil {
 		log.Fatal(err)
 	}
@@ -291,79 +283,11 @@ func ObserveMalloc() {
 				continue
 			}
 			values = append(values, int(value))
-
 		}
-		//values := [3]int{int(value0), int(value1), int(value2)}
 		printLogHist(memType, values, "malloc")
-		//log.Printf("%d, %d, %d", value0, value1, value2)
+		fmt.Println("--------------------------------------------------------------------------------------------------")
 	}
 }
-
-// static void print_stars(unsigned int val, unsigned int val_max, int width)
-// {
-// 	int num_stars, num_spaces, i;
-// 	bool need_plus;
-
-// 	num_stars = min(val, val_max) * width / val_max;
-// 	num_spaces = width - num_stars;
-// 	need_plus = val > val_max;
-
-// 	for (i = 0; i < num_stars; i++)
-// 		printf("*");
-// 	for (i = 0; i < num_spaces; i++)
-// 		printf(" ");
-// 	if (need_plus)
-// 		printf("+");
-// }
-
-// void print_log2_hist(unsigned int *vals, int vals_size, const char *val_type)
-// {
-// 	int stars_max = 40, idx_max = -1;
-// 	unsigned int val, val_max = 0;
-// 	unsigned long long low, high;
-// 	int stars, width, i;
-
-// 	for (i = 0; i < vals_size; i++) {
-// 		val = vals[i];
-// 		if (val > 0)
-// 			idx_max = i;
-// 		if (val > val_max)
-// 			val_max = val;
-// 	}
-
-// 	if (idx_max < 0)
-// 		return;
-
-// 	printf("%*s%-*s : count    distribution\n", idx_max <= 32 ? 5 : 15, "",
-// 		idx_max <= 32 ? 19 : 29, val_type);
-
-// 	if (idx_max <= 32)
-// 		stars = stars_max;
-// 	else
-// 		stars = stars_max / 2;
-
-// 	for (i = 0; i <= idx_max; i++) {
-// 		low = (1ULL << (i + 1)) >> 1;
-// 		high = (1ULL << (i + 1)) - 1;
-// 		if (low == high)
-// 			low -= 1;
-// 		val = vals[i];
-// 		width = idx_max <= 32 ? 10 : 20;
-// 		printf("%*lld -> %-*lld : %-8d |", width, low, width, high, val);
-// 		print_stars(val, val_max, stars);
-// 		printf("|\n");
-// 	}
-// }
-
-// kbytes          : count     distribution
-// 0 -> 1        : 3        |                                      |
-// 2 -> 3        : 0        |                                      |
-// 4 -> 7        : 211      |**********                            |
-// 8 -> 15       : 0        |                                      |
-// 16 -> 31       : 0        |                                      |
-// 32 -> 63       : 0        |                                      |
-// 64 -> 127      : 1        |                                      |
-// 128 -> 255      : 800      |**************************************|
 
 func printLogHist(type_ []string, vals []int, val_type string) {
 	stars_max := 60

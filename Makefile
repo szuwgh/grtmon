@@ -16,6 +16,8 @@ build_go: $(GO_BINARY)
 clean:
 	$(GOCLEAN)
 	rm -f $(GO_BINARY)
+	rm -f user/bpf_bpfel_x86.o
+	rm -f user/bpf_bpfel_x86.go
 
 build:
 	cd user/ && go generate 

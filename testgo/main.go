@@ -1,42 +1,88 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"runtime"
+	"testgo/check"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
-// "testgo/check"
-// "time"
-//	"os"
+var rootCmd = &cobra.Command{
+	Use:   "testgo",
+	Short: "go runtime simple monitor based on ebpf",
+	Run: func(cmd *cobra.Command, args []string) {
+		// Do Stuff Here
+	},
+}
+
+var goroutineCmd = &cobra.Command{
+	Use:   "gr",
+	Short: "observe goroutine creation schedule",
+	Run:   goroutineCommandFunc,
+}
+
+var gcCmd = &cobra.Command{
+	Use:   "gc",
+	Short: "observe gc",
+	Run:   gcCommandFunc,
+}
+
+var gmCmd = &cobra.Command{
+	Use:   "gm",
+	Short: "observe gc",
+	Run:   gmCommandFunc,
+}
+
+func init() {
+	rootCmd.AddCommand(goroutineCmd)
+	rootCmd.AddCommand(gcCmd)
+	rootCmd.AddCommand(gmCmd)
+
+}
 
 type A struct {
 	aa int
+	bb []uint8
 }
 
 func a() {
-	xx := make([]int, 1000)
-	yy := make([]int, 100000000)
-	a := &A{}
-	xx[0] = 1
-	yy[0] = 2
-	a.aa = 1
+
+	for i := 1; i < 100; i++ {
+		a := &A{}
+		a.aa = 1
+		a.bb = make([]uint8, i)
+		a.aa = 1
+	}
+	yy1 := make([]int, 10000000)
+	yy1[0] = 1
+	yy2 := make([]int, 1000)
+	yy2[0] = 1
+}
+
+func goroutineCommandFunc(command *cobra.Command, args []string) {
+	var i int = 101
+	for {
+		check.Ok(i)
+		i++
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func gcCommandFunc(command *cobra.Command, args []string) {
+	a()
+	runtime.GC()
+}
+
+func gmCommandFunc(command *cobra.Command, args []string) {
+	a()
 }
 
 func main() {
-	//runtime.StartTrace()
-	//runtime.GOMAXPROCS(1)
-	// var i int = 101
-	// for {
-
-	// 	check.Ok(i)
-	// 	i++
-	// 	time.Sleep(2 * time.Second)
-	// }
-	for {
-		time.Sleep(2 * time.Second)
-		a()
-		runtime.GC()
-
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
-	//select {}
 }
