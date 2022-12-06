@@ -11,17 +11,21 @@ $ ./grtmon gr --binpath ./testgo/testgo
 Tracing... Hit Ctrl-C to end.
    FN        GOID    PID     EVENT         TIME(ns)
    4d3160    0       0       create        0
-   4d3160    41      0       exit          1000782659
+   4d3160    92      0       exit          1000342366
    4d3100    0       0       create        0
-   4d3100    42      0       exit          489692
+   4d3100    108     0       exit          77909
    4d3160    0       0       create        0
-   4d3160    51      0       exit          1001695123
+   4d3160    93      0       exit          1000497171
    4d3100    0       0       create        0
-   4d3100    43      0       exit          42666
+   0         0       1       get global g  0
+   4d3100    94      0       exit          1600696
    4d3160    0       0       create        0
-   4d3160    44      0       exit          1000915666
+   4d3160    95      0       exit          1001894217
    4d3100    0       0       create        0
-   4d3100    52      0       exit          46576
+   4d3100    96      0       exit          138529
+   4d3160    0       0       create        0
+   0         0       1       get global g  0
+   4d3160    97      0       exit          1000955563
 ```
 
 #### monitor goroutine latency distribution
@@ -155,3 +159,14 @@ Wrote /opt/goproject/rtmon/src/grtmon/user/bpf_bpfel_x86.go
 cd testgo/ && go build
 go build -v -o grtmon
 ```
+
+Commands:
+* `version`: show version
+* `gr`: monitor goroutine events
+* `gr seq`: monitor goroutine latency distribution
+* `gc`: monitor gc event
+* `gm`: monitor malloc memory distribution
+
+Common options
+
+* `-binpath`: The path to the ELF binary containing the function to trace

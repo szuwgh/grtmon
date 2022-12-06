@@ -285,7 +285,7 @@ func ObserveMalloc(binPath string) {
 			values = append(values, int(value))
 		}
 		printLogHist(memType, values, "malloc")
-		fmt.Println("--------------------------------------------------------------------------------------------------")
+		fmt.Println("")
 	}
 }
 

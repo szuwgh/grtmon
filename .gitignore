@@ -16,6 +16,8 @@
 villus
 bpf_*.o
 grtmon
+testgo/testgo
+*_x86.go
 
 
 # Dependency directories (remove the comment below to include it)

@@ -12,8 +12,14 @@ var rootCmd = &cobra.Command{
 	Use:   "grtmon",
 	Short: "go runtime simple monitor based on ebpf",
 	Run: func(cmd *cobra.Command, args []string) {
-		// Do Stuff Here
+
 	},
+}
+
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "show version",
+	Run:   versionCommandFunc,
 }
 
 var goroutineCmd = &cobra.Command{
@@ -41,6 +47,7 @@ var mallocCmd = &cobra.Command{
 }
 
 func init() {
+	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(goroutineCmd)
 	rootCmd.AddCommand(gcCmd)
 	rootCmd.AddCommand(mallocCmd)
@@ -54,6 +61,10 @@ func Execute() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func versionCommandFunc(command *cobra.Command, args []string) {
+	fmt.Println("grtmon version 0.1 linux/amd64")
 }
 
 func goroutineCommandFunc(command *cobra.Command, args []string) {
