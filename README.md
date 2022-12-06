@@ -1,11 +1,11 @@
-# Rtmon
+# Grtmon
 go runtime monitor based on ebpf
 
 This is a command-line tool based on ebpf, which can observe the goroutine creation and running time of golang runtime, gc events and memory allocation distribution
 
 ##  User Guide
 
-#### observe goroutine events
+#### monitor goroutine events
 ```
 $ ./grtmon gr --binpath ./testgo/testgo
 Tracing... Hit Ctrl-C to end.
@@ -24,7 +24,7 @@ Tracing... Hit Ctrl-C to end.
    4d3100    52      0       exit          46576
 ```
 
-#### observe goroutine latency distribution
+#### monitor goroutine latency distribution
 ```
 $ ./grtmon gr seq --binpath ./testgo/testgo
 Tracing... Hit Ctrl-C to end.
@@ -51,7 +51,7 @@ Tracing... Hit Ctrl-C to end.
     524288 -> 1048575    : 28       |************************************************************|
 ```
 
-#### observe gc event
+#### monitor gc event
 ```
 $ ./grtmon gc --binpath ./testgo/testgo
 Tracing... Hit Ctrl-C to end.
@@ -66,7 +66,7 @@ Tracing... Hit Ctrl-C to end.
    stw           12967
 ```
 
-#### observe malloc memory distribution
+#### monitor malloc memory distribution
 ```
 $ ./grtmon gm --binpath ./testgo/testgo
 Tracing... Hit Ctrl-C to end.
