@@ -15,6 +15,7 @@
 *.out
 villus
 bpf_*.o
+grtmon
 
 
 # Dependency directories (remove the comment below to include it)
