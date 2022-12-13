@@ -149,7 +149,7 @@ Tracing... Hit Ctrl-C to end.
 
 
 ##  How to make
-
+Install Build Dependencies, Refer to [bcc](https://github.com/iovisor/bcc/blob/master/INSTALL.md#source) dependency installation
 ```
 $ make build
 cd user/ && go generate
